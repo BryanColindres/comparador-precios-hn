@@ -6,6 +6,7 @@ Página para el celular que compara precios de **Paiz** y **La Colonia**, con cu
 - **Calculadora:** productos en orden alfabético; escribes lo que te cobran en el mercado y eliges la unidad (lb, kg, g, oz, unidad, docena…). Compara solo en la misma medida: si una tienda lo vende únicamente por libra y tú por unidad, lo dice en vez de inventar una comparación.
 - **Buscar:** todo el catálogo; da igual singular/plural (huevo/huevos) y acentos; filtro Todas / solo Paiz / solo La Colonia / En ambas; ordena por precio, precio por unidad o mayor ahorro; botón **Similares** para ver el equivalente en la otra tienda.
 - **Escáner:** el botón de código de barras en Buscar abre la cámara y muestra el producto en cada tienda (o escribes el número). Necesita HTTPS (GitHub Pages lo es) y permiso de cámara; en iPhone carga un lector extra, así que pide internet.
+- **Mercado:** tu lista de compra del mercado con cantidad, unidad y precio pagado; suma lo gastado, tiene presupuesto opcional y, si el producto está en la lista básica, te dice cuánto más o menos pagaste que en el súper. Se guarda en el celular y se puede compartir por WhatsApp.
 - **Canasta:** suma el total por tienda (se guarda en el celular).
 
 Incluye tema claro/oscuro.

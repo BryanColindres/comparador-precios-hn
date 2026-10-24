@@ -184,7 +184,7 @@ a.p:active{transform:scale(.98)}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:8px 10px calc(8px + env(safe-area-inset-bottom));
   background:color-mix(in srgb,var(--sf) 88%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   border-top:1px solid var(--bd)}
-.tabbar .in{max-width:720px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.tabbar .in{max-width:720px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
 .tab{position:relative;height:52px;border-radius:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:2px;font-size:11px;font-weight:650;color:var(--mu);transition:color .15s,background .2s}
 .tab.on{color:var(--tx);background:var(--sf2)}
@@ -234,6 +234,28 @@ a.p:active{transform:scale(.98)}
 .cam-bot form{display:flex;gap:8px}
 .cam-bot input{flex:1;min-width:0;height:46px;border-radius:12px;border:1px solid #344055;background:#161b22;color:#fff;padding:0 14px;font-size:16px}
 .cam-bot button{height:46px;padding:0 18px;border-radius:12px;background:#fff;color:#000;font-weight:700}
+
+.mk{padding:14px;display:grid;gap:10px}
+.mk .r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mk .r3{display:grid;grid-template-columns:.8fr 1fr 1fr;gap:8px}
+.in2{width:100%;height:48px;border-radius:13px;border:1px solid var(--bd);background:var(--sf2);padding:0 12px;outline:none;font-size:16px}
+.in2:focus{border-color:var(--pz)}
+.mk .btn.pri{height:48px;justify-content:center;font-size:15px}
+.sum{padding:16px;margin-bottom:12px;background:linear-gradient(135deg,var(--ac),color-mix(in srgb,var(--ac) 70%,var(--pz)));color:var(--acx);border:0}
+.sum .lab{color:inherit;opacity:.7}.sum .big{font-size:34px;font-weight:850;letter-spacing:-.03em;line-height:1.1}
+.sum .sm{font-size:13px;opacity:.85;margin-top:6px}
+.pbar{height:8px;border-radius:99px;background:rgba(127,127,127,.35);margin-top:10px;overflow:hidden}
+.pbar i{display:block;height:100%;border-radius:99px;background:var(--ok);transition:width .6s}
+.pbar i.over{background:var(--bad)}
+.mrow{padding:12px 14px;margin-bottom:10px}
+.mrow .h{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.mrow .h b{font-size:15.5px}.mrow .h .pr{font-weight:800;font-size:17px;white-space:nowrap}
+.mrow .s{font-size:12.5px;color:var(--mu);margin-top:2px}
+.mrow .pend{display:flex;gap:8px;margin-top:10px}
+.mrow .pend .in2{height:42px;flex:1}
+.mrow .pend .btn{height:42px}
+.mrow .xb{color:var(--mu);font-size:12px;font-weight:650;margin-top:8px}
+.mrow .badge{margin-top:8px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(min-width:720px){body{font-size:16px}}
 </style>
@@ -291,6 +313,22 @@ a.p:active{transform:scale(.98)}
     <div id="out" style="margin-top:12px"></div>
   </section>
 
+  <!-- MERCADO -->
+  <section class="view" id="v-mercado" aria-label="Mercado">
+    <div id="msum"></div>
+    <div class="card mk">
+      <div><label class="lab" for="mn">Producto</label><input class="in2" id="mn" list="mdl" placeholder="Ej: tomate, aguacate, queso…" autocomplete="off" enterkeyhint="next"><datalist id="mdl"></datalist></div>
+      <div class="r3"><div><label class="lab" for="mq">Cantidad</label><input class="in2" id="mq" type="number" inputmode="decimal" min="0" step="any" value="1"></div>
+        <div><label class="lab" for="mu">Unidad</label><select class="in2" id="mu"><option>lb</option><option>kg</option><option>unidad</option><option>docena</option><option>litro</option><option>g</option><option>oz</option><option>ml</option></select></div>
+        <div><label class="lab" for="mp">Precio total</label><input class="in2" id="mp" type="number" inputmode="decimal" min="0" step="any" placeholder="L"></div></div>
+      <button class="btn pri" id="madd">+ Agregar</button>
+      <div class="muted small">Si aún no sabes cuánto cuesta, déjalo vacío: queda «por comprar» y le pones el precio al pagar.</div>
+    </div>
+    <h2>Tu compra</h2>
+    <div id="mlist"></div>
+    <div id="mfoot"></div>
+  </section>
+
   <!-- CANASTA -->
   <section class="view" id="v-canasta" aria-label="Canasta">
     <div id="cart"></div>
@@ -301,6 +339,7 @@ a.p:active{transform:scale(.98)}
   <button class="tab on" data-v="lista" role="tab" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>Lista</button>
   <button class="tab" data-v="calc" role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="3"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18.5h.01M12 18.5h.01M16 18.5h.01"/></svg>Calculadora</button>
   <button class="tab" data-v="buscar" role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Buscar</button>
+  <button class="tab" data-v="mercado" role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M3 9h18M3 9v1a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0V9M5 13v7h14v-7"/></svg>Mercado</button>
   <button class="tab" data-v="canasta" role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1.4 11a2 2 0 0 1-2 1.7H8.4a2 2 0 0 1-2-1.7L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Canasta<span class="bg" id="bg"></span></button>
 </div></nav>
 
@@ -372,6 +411,7 @@ function ver(v){
   $$(".tab").forEach(b=>{const on=b.dataset.v===v;b.classList.toggle("on",on);b.setAttribute("aria-selected",on)});
   store.set("phn_vista",v);window.scrollTo({top:0});
   if(v==="canasta")pintarCanasta();
+  if(v==="mercado")mPintar();
 }
 $$(".tab").forEach(b=>b.onclick=()=>ver(b.dataset.v));
 
@@ -653,6 +693,79 @@ $("#scan").onclick=abrirCam;$("#camx").onclick=cerrarCam;
 $("#manual").onsubmit=e=>{e.preventDefault();porCodigo($("#mc").value);$("#mc").value=""};
 document.addEventListener("keydown",e=>{if(e.key==="Escape")cerrarCam()});
 
+/* ───── MERCADO: lista y gasto ───── */
+const MU={lb:{base:"lb",f:1},kg:{base:"lb",f:2.20462},g:{base:"lb",f:1/453.592},oz:{base:"lb",f:1/16},
+  unidad:{base:"u",f:1},docena:{base:"u",f:12},litro:{base:"L",f:1},ml:{base:"L",f:.001}};
+const BU={lb:"libra",u:"unidad",L:"litro"};
+let MK=store.get("phn_mercado",{items:[],pres:0});
+if(!MK||!Array.isArray(MK.items))MK={items:[],pres:0};
+const mSave=()=>store.set("phn_mercado",MK);
+$("#mdl").innerHTML=ORD.map(i=>`<option value="${esc(LISTA[i].n)}">`).join("");
+const liDe=n=>{const k=norm(n.trim());return LISTA.findIndex(x=>norm(x.n)===k)};
+function mCompara(e){ // compara lo pagado con el súper en la misma medida; null si no se puede
+  if(e.p==null||e.li<0)return null;
+  const mu=MU[e.u],r=calcular(LISTA[e.li],e.p,e.q,{k:e.u,f:mu.f,base:mu.base});
+  if(!r)return null;
+  const t=r.t.filter(x=>x.s);if(!t.length)return null;
+  return{mer:r.mer,base:r.base,t,f:mu.f*e.q}; // f*q = cantidad en la medida base
+}
+function mPintar(){
+  const its=MK.items,pag=its.filter(e=>e.p!=null),pen=its.filter(e=>e.p==null);
+  const tot=pag.reduce((a,e)=>a+e.p,0);
+  let ahorro=0,nc=0;
+  pag.forEach(e=>{const c=mCompara(e);if(!c)return;
+    const sup=Math.min(...c.t.map(x=>x.s[0]))*c.f;ahorro+=sup-e.p;nc++});
+  const pres=MK.pres>0?MK.pres:0,pct=pres?Math.min(100,tot/pres*100):0;
+  $("#msum").innerHTML=`<div class="card sum"><div class="lab">Llevas gastado</div><div class="big" id="mtot" data-v="0">${money(tot)}</div>
+    <div class="sm">${pag.length} comprado${pag.length===1?"":"s"}${pen.length?" · "+pen.length+" por comprar":""}</div>
+    ${pres?`<div class="pbar"><i class="${tot>pres?"over":""}" style="width:${pct}%"></i></div><div class="sm">${tot>pres?"Te pasaste "+money(tot-pres):"Te quedan "+money(pres-tot)} de ${money(pres)}</div>`:""}
+    ${nc?`<div class="sm">${ahorro>=0?"Frente al súper ahorraste ":"Frente al súper pagaste "}<b>${money(Math.abs(ahorro))}</b> ${ahorro>=0?"menos":"más"} en ${nc} producto${nc>1?"s":""} comparable${nc>1?"s":""}.</div>`:""}
+    <div class="acts"><button class="btn" id="mpres" style="background:rgba(255,255,255,.18);color:inherit">${pres?"Cambiar presupuesto":"Poner presupuesto"}</button></div></div>`;
+  anim($("#mtot"),tot,money);
+  if(!its.length){$("#mlist").innerHTML=`<div class="empty"><b>Aún no hay nada</b>Agrega lo que vas comprando y llevo la cuenta. Si el producto está en la lista básica, te comparo con Paiz y La Colonia.</div>`;$("#mfoot").innerHTML="";return}
+  const fila=(e,i)=>{
+    const c=mCompara(e),up=e.p!=null?e.p/e.q:0;
+    let cmp="";
+    if(c){const m=c.t.slice().sort((a,b)=>a.s[0]-b.s[0])[0],d=c.mer-m.s[0],pc=Math.abs(d)/Math.max(c.mer,m.s[0])*100;
+      cmp=Math.abs(d)<.005?`<span class="badge eq">Igual que ${ST[m.t].n}</span>`
+        :d<0?`<span class="badge ok">${money(-d)} menos por ${BU[c.base]} que ${ST[m.t].n} (${pc.toFixed(0)}%)</span>`
+        :`<span class="badge bad">${money(d)} más por ${BU[c.base]} que ${ST[m.t].n} (${pc.toFixed(0)}%)</span>`}
+    else if(e.p!=null&&e.li>=0)cmp=`<span class="badge info">Sin comparación en esa unidad</span>`;
+    return`<div class="card mrow"><div class="h"><b>${esc(e.n)}</b><span class="pr">${e.p!=null?money(e.p):"—"}</span></div>
+     <div class="s">${e.q} ${e.u}${e.p!=null?" · "+money(up)+" por "+e.u:" · por comprar"}</div>
+     ${e.p==null?`<div class="pend"><input class="in2" type="number" inputmode="decimal" min="0" step="any" placeholder="Precio total (L)" data-pp="${i}"><button class="btn pri" data-ok="${i}">Listo</button></div>`:cmp}
+     <button class="xb" data-del="${i}">Quitar</button></div>`};
+  $("#mlist").innerHTML=pen.concat(pag).map(e=>fila(e,its.indexOf(e))).join("");
+  $("#mfoot").innerHTML=`<div class="acts" style="justify-content:center;margin:6px 0 10px"><button class="btn" id="mshare">Compartir</button><button class="btn" id="mclear">Empezar compra nueva</button></div>`;
+}
+function mAgregar(){
+  const n=$("#mn").value.trim(),q=parseFloat($("#mq").value),pr=$("#mp").value===""?null:parseFloat($("#mp").value),u=$("#mu").value;
+  if(!n){toast("Escribe el producto");$("#mn").focus();return}
+  if(!(q>0)){toast("Pon la cantidad");return}
+  if(pr!=null&&!(pr>=0)){toast("Precio no válido");return}
+  MK.items.push({n,q,u,p:pr,li:liDe(n)});mSave();
+  $("#mn").value="";$("#mp").value="";$("#mq").value="1";mPintar();badge();$("#mn").focus();
+  toast(pr==null?"Agregado: por comprar":"Agregado");
+}
+$("#madd").onclick=mAgregar;
+$("#mp").addEventListener("keydown",e=>{if(e.key==="Enter")mAgregar()});
+$("#mn").addEventListener("change",()=>{ // sugiere la unidad natural del producto de la lista
+  const i=liDe($("#mn").value);if(i<0)return;const b=LISTA[i].u;
+  $("#mu").value=b==="lb"?"lb":b==="L"?"litro":"unidad"});
+$("#v-mercado").onclick=e=>{
+  const d=e.target.closest("[data-del]");if(d){MK.items.splice(+d.dataset.del,1);mSave();mPintar();return}
+  const ok=e.target.closest("[data-ok]");if(ok){const i=+ok.dataset.ok,v=parseFloat($(`[data-pp="${i}"]`).value);
+    if(!(v>=0)){toast("Pon el precio");return}MK.items[i].p=v;mSave();mPintar();toast("Anotado");return}
+  if(e.target.closest("#mpres")){const v=prompt("Presupuesto en lempiras (0 para quitarlo):",MK.pres||"");if(v===null)return;
+    MK.pres=Math.max(0,parseFloat(String(v).replace(",","."))||0);mSave();mPintar();return}
+  if(e.target.closest("#mclear")){if(confirm("¿Borrar esta compra y empezar otra?")){MK.items=[];mSave();mPintar()}return}
+  if(e.target.closest("#mshare")){
+    const pag=MK.items.filter(x=>x.p!=null),tot=pag.reduce((a,x)=>a+x.p,0);
+    const t="Compra del mercado\n"+MK.items.map(x=>`• ${x.n}: ${x.q} ${x.u}${x.p!=null?" – "+money(x.p):" (por comprar)"}`).join("\n")+"\nTotal: "+money(tot);
+    if(navigator.share)navigator.share({text:t}).catch(()=>{});else window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank","noopener");
+  }
+};
+
 /* ───── CANASTA ───── */
 let cart=store.get("phn_canasta",{});
 Object.keys(cart).forEach(k=>{if(!byId.has(k))delete cart[k]});
@@ -699,7 +812,7 @@ $("#cart").onclick=e=>{
 
 /* ───── arranque ───── */
 hero();pintarLista();pintarUnidades();calc();pintarBuscar();badge();
-const v0=store.get("phn_vista","lista");ver(["lista","calc","buscar","canasta"].includes(v0)?v0:"lista");
+const v0=store.get("phn_vista","lista");ver(["lista","calc","buscar","mercado","canasta"].includes(v0)?v0:"lista");
 if("serviceWorker" in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
 </body>
