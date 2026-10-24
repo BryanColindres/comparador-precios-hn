@@ -8,7 +8,8 @@ Página para el celular que compara precios de **Paiz** y **La Colonia**, con cu
 - **Escáner:** el botón de código de barras en Buscar abre la cámara y muestra el producto en cada tienda (o escribes el número). Necesita HTTPS (GitHub Pages lo es) y permiso de cámara; en iPhone carga un lector extra, así que pide internet.
 - **Mercado:** tu lista de compra del mercado con cantidad, unidad y precio pagado; suma lo gastado, tiene presupuesto opcional y, si el producto está en la lista básica, te dice cuánto más o menos pagaste que en el súper. Se guarda en el celular y se puede compartir por WhatsApp.
 - **Historial y perfiles:** en Mercado puedes editar cada producto, guardar la compra con fecha y lugar, ver el gasto por compra y cuánto subieron o bajaron los precios frente a la vez anterior, y repetir una compra. Cada persona crea su perfil (ícono de arriba) con su propio historial. Todo se guarda **en el navegador de cada celular**: no hay cuentas ni sincronización; para pasar un perfil a otro teléfono, usa «Copiar respaldo».
-- **Canasta:** suma el total por tienda (se guarda en el celular).
+- **Mi lista:** lista de compras con casillas (escribes lo que necesitas o agregas productos del catálogo), suma por tienda lo que tiene precio, se puede guardar como lista para reutilizarla y guardar la compra en el historial.
+- **Favoritos:** estrella en cualquier producto de Buscar; aparecen arriba en Lista con el precio de cada tienda.
 
 Incluye tema claro/oscuro.
 
