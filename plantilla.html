@@ -275,6 +275,13 @@ a.p:active{transform:scale(.98)}
 .cal>*,.grid2>*{min-width:0}
 .step{min-width:0}.step input{flex:1 1 0;min-width:0;width:100%}
 .num{min-width:0}.num input{min-width:0}
+.ckb{width:30px;height:30px;border-radius:9px;border:2px solid var(--bd);flex:none;display:grid;place-items:center;color:transparent;transition:all .15s;background:var(--sf)}
+.ckb svg{width:18px;height:18px;stroke-width:3}
+.ckb.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.crow.done{opacity:.55}.crow.done h3{text-decoration:line-through}
+.prog{font-size:13.5px;margin:2px 4px 12px}.pbar2{height:8px;border-radius:99px;background:var(--sf2);margin-top:6px;overflow:hidden}
+.pbar2 i{display:block;height:100%;background:var(--ok);border-radius:99px;transition:width .4s}
+.fav{color:var(--mu)}.fav.on{color:#e8a400}.fav.on svg{fill:currentColor}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(min-width:720px){body{font-size:16px}}
 </style>
@@ -291,6 +298,7 @@ a.p:active{transform:scale(.98)}
   <!-- LISTA -->
   <section class="view on" id="v-lista" aria-label="Lista de productos básicos">
     <div class="card hero" id="hero"></div>
+    <div id="favs"></div>
     <div class="chips" id="gchips"></div>
     <div class="field" id="lf"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="lq" type="search" placeholder="Filtrar la lista…" autocomplete="off" aria-label="Filtrar la lista">
@@ -366,7 +374,7 @@ a.p:active{transform:scale(.98)}
   <button class="tab" data-v="calc" role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="3"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18.5h.01M12 18.5h.01M16 18.5h.01"/></svg>Calculadora</button>
   <button class="tab" data-v="buscar" role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Buscar</button>
   <button class="tab" data-v="mercado" role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M3 9h18M3 9v1a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0V9M5 13v7h14v-7"/></svg>Mercado</button>
-  <button class="tab" data-v="canasta" role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1.4 11a2 2 0 0 1-2 1.7H8.4a2 2 0 0 1-2-1.7L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Canasta<span class="bg" id="bg"></span></button>
+  <button class="tab" data-v="canasta" role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1.4 11a2 2 0 0 1-2 1.7H8.4a2 2 0 0 1-2-1.7L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Mi lista<span class="bg" id="bg"></span></button>
 </div></nav>
 
 <div id="scrim"></div>
@@ -446,6 +454,7 @@ function hoja(html){$("#sb").innerHTML=html;$("#sheet").classList.add("on");$("#
 function cerrar(){$("#sheet").classList.remove("on");$("#scrim").classList.remove("on")}
 $("#scrim").onclick=cerrar;document.addEventListener("keydown",e=>{if(e.key==="Escape")cerrar()});
 
+const STAR='<svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z"/></svg>';
 /* ───── LISTA ───── */
 const PRODG=g=>g==="Verduras"||g==="Frutas";
 function comparar(it){ // compara en la misma unidad; si no se puede, deja cada tienda con lo que tiene
@@ -628,7 +637,8 @@ function tarjeta(x){
    <div class="meta">${s[9]?`<span class="badge info">${esc(s[9])}</span>`:""}${x.x==="e"?`<span class="badge info">Mismo producto</span>`:x.x==="f"?`<span class="badge info" title="Misma marca, tamaño y nombre muy parecido">Coincidencia probable</span>`:""}${tag}</div>
    ${alt}${cuerpo}
    <div class="acts"><button class="btn" data-sim="${esc(x.id)}">${IC.find} Similares</button>
-   <button class="btn ${inCart?"in":"pri"}" data-add="${esc(x.id)}">${inCart?IC.chk+" En canasta":IC.plus+" Canasta"}</button></div></div></article>`;
+   <button class="btn fav ${DATA.favs.includes(x.id)?"on":""}" data-fav="${esc(x.id)}" aria-label="Favorito" aria-pressed="${DATA.favs.includes(x.id)}">${STAR}</button>
+   <button class="btn ${inCart?"in":"pri"}" data-add="${esc(x.id)}">${inCart?IC.chk+" En mi lista":IC.plus+" A mi lista"}</button></div></div></article>`;
 }
 function pintarBuscar(){
   $("#qf").classList.toggle("has",!!$("#q").value);
@@ -656,9 +666,30 @@ $("#out").onclick=e=>{
   const s=e.target.closest("[data-s]");if(s){irBuscar(s.dataset.s);return}
   if(e.target.closest("#mas")){B.n+=30;pintarBuscar();return}
   const a=e.target.closest("[data-add]");if(a){agregar(a.dataset.add);return}
+  const fv=e.target.closest("[data-fav]");if(fv){toggleFav(fv.dataset.fav);return}
   const m=e.target.closest("[data-sim]");if(m)similares(byId.get(m.dataset.sim));
 };
 
+function toggleFav(id){
+  const i=DATA.favs.indexOf(id);if(i>=0){DATA.favs.splice(i,1);toast("Quitado de favoritos")}else{DATA.favs.push(id);toast("Agregado a favoritos")}
+  persist();pintarFavs();if($("#v-buscar").classList.contains("on"))pintarBuscar();
+}
+function pintarFavs(){
+  const box=$("#favs");const fs=DATA.favs.map(id=>byId.get(id)).filter(Boolean);
+  if(!fs.length){box.innerHTML=DATA.favs.length?"":`<div class="card" style="padding:12px 14px;margin-bottom:6px;font-size:13px;color:var(--mu)">${STAR.replace("<svg","<svg style=\"width:16px;height:16px;vertical-align:-3px\"")} Toca la estrella en cualquier producto de Buscar y aparecerá aquí con sus precios.</div>`;return}
+  box.innerHTML=`<h2>Mis favoritos</h2>`+fs.map(x=>{
+    const d=x.p&&x.c?x.p[0]-x.c[0]:null,gp=d!=null&&d<0,gc=d!=null&&d>0;
+    const pl=(t,s,w)=>s?`<div class="p ${ST[t].k} ${w?"win":""}"><span class="st">${ST[t].n}${w?" "+IC.chk:""}</span><span class="v">${money(s[0])}</span><span class="pn">${s[2]?money(s[2])+" / "+SH[s[3]]:"&nbsp;"}</span></div>`
+      :`<div class="p none ${ST[t].k}"><span class="st">${ST[t].n}</span><span class="v">—</span><span class="pn">no lo tiene igual</span></div>`;
+    return`<button class="card row" data-favopen="${esc(x.id)}"><div class="nm"><b>${esc(x.nm)}</b></div><div class="two">${pl("p",x.p,gp)}${pl("c",x.c,gc)}</div></button>`}).join("");
+}
+$("#favs").onclick=e=>{const b=e.target.closest("[data-favopen]");if(!b)return;const x=byId.get(b.dataset.favopen);
+  hoja(`<h3 class="t">${esc(x.nm)}</h3>`+["p","c"].map(t=>x[t]?`<div class="sline"><div class="im">${x[t][6]?`<img loading="lazy" referrerpolicy="no-referrer" src="${esc(imgu(t,x[t][6]))}" alt="" onerror="this.remove()">`:""}</div><div class="bd"><span class="badge info">${ST[t].n}</span><h4 style="margin-top:5px">${esc(x[t][7])}</h4><div class="px">${money(x[t][0])}</div>${x[t][5]?`<a class="lnk" href="${esc(link(t,x[t][5]))}" target="_blank" rel="noopener">Ver en ${ST[t].n} ${IC.ext}</a>`:""}</div></div>`:"").join("")+
+  `<div class="acts" style="flex-wrap:wrap"><button class="btn pri" data-add="${esc(x.id)}">${cart[x.id]?IC.chk+" En mi lista":IC.plus+" A mi lista"}</button><button class="btn" data-sim="${esc(x.id)}">${IC.find} Similares</button><button class="btn" data-unfav="${esc(x.id)}" style="color:var(--bad)">Quitar favorito</button></div>`)};
+$("#sb").addEventListener("click",e=>{
+  const u=e.target.closest("[data-unfav]");if(u){toggleFav(u.dataset.unfav);cerrar();return}
+  const m=e.target.closest("[data-sim]");if(m&&!$("#out").contains(m))similares(byId.get(m.dataset.sim));
+});
 /* Similares: mismo tipo y tamaño parecido en la otra tienda */
 function similares(x){
   const foco=B.f==="c"&&x.c?"c":x.p?"p":"c",ot=foco==="p"?"c":"p",ref=x[foco];
@@ -682,7 +713,7 @@ function similares(x){
     h+=`<div class="sline"><div class="im">${s[6]?`<img loading="lazy" referrerpolicy="no-referrer" src="${esc(imgu(ot,s[6]))}" alt="" onerror="this.remove()">`:""}</div>
     <div class="bd"><h4>${esc(s[7])}</h4><div class="px">${money(s[0])} <em>${s[9]||""}${s[2]?` · ${money(s[2])}/${un}`:""}</em></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">${b}
-    <button class="btn" style="height:30px;padding:0 10px" data-add="${esc(y.id)}">${IC.plus} Canasta</button>
+    <button class="btn" style="height:30px;padding:0 10px" data-add="${esc(y.id)}">${IC.plus} A mi lista</button>
     ${s[5]?`<a class="lnk" href="${esc(link(ot,s[5]))}" target="_blank" rel="noopener">Ver ${IC.ext}</a>`:""}</div></div></div>`;
   });
   hoja(h);
@@ -727,7 +758,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")cerrarCam()});
 
 /* ───── PERFILES (guardados en este celular) ───── */
 const PKEY=id=>"phn_p_"+id;
-const VACIO=()=>({mk:{items:[],pres:0,fecha:"",nota:""},cart:{},hist:[]});
+const VACIO=()=>({mk:{items:[],pres:0,fecha:"",nota:""},cart:{},hist:[],chk:{},libres:[],listas:[],favs:[]});
 let PR=store.get("phn_perfiles",null),DATA,MK,HIST,cart;
 if(!PR||!Array.isArray(PR.lista)||!PR.lista.length){ // primera vez: lo que ya había se queda en el primer perfil
   const d=VACIO();const m=store.get("phn_mercado",null),c=store.get("phn_canasta",null);
@@ -742,9 +773,11 @@ function cargarPerfil(){
   DATA=Object.assign(VACIO(),store.get(PKEY(PR.act),{}));
   DATA.mk=Object.assign(VACIO().mk,DATA.mk||{});if(!Array.isArray(DATA.mk.items))DATA.mk.items=[];
   if(!Array.isArray(DATA.hist))DATA.hist=[];if(!DATA.cart||typeof DATA.cart!=="object")DATA.cart={};
+  ["libres","listas","favs"].forEach(k=>{if(!Array.isArray(DATA[k]))DATA[k]=[]});if(!DATA.chk||typeof DATA.chk!=="object")DATA.chk={};
   if(!DATA.mk.fecha)DATA.mk.fecha=hoy();
   MK=DATA.mk;HIST=DATA.hist;cart=DATA.cart;
-  Object.keys(cart).forEach(k=>{if(!byId.has(k))delete cart[k]});
+  Object.keys(cart).forEach(k=>{if(!byId.has(k)){delete cart[k];delete DATA.chk[k]}});
+  DATA.favs=DATA.favs.filter(k=>byId.has(k));
 }
 const persist=()=>store.set(PKEY(PR.act),DATA);
 const mSave=persist;
@@ -753,7 +786,7 @@ const PCOL=["#2a68e6","#e0560d","#0f7b57","#8b46d8","#c2301d","#0e8fa8"];
 function pintarAvatar(){const i=Math.max(0,PR.lista.findIndex(p=>p.id===PR.act)),p=PR.lista[i];
   const b=$("#perf");b.textContent=(p.n.trim()[0]||"?").toUpperCase();b.style.background=PCOL[i%PCOL.length];b.style.color="#fff";b.style.borderColor="transparent";
   b.setAttribute("aria-label","Perfil: "+p.n)}
-function cambiarPerfil(id){PR.act=id;store.set("phn_perfiles",PR);cargarPerfil();editIdx=-1;pintarAvatar();mForm();mPintar();pintarCanasta();pintarBuscar();badge()}
+function cambiarPerfil(id){PR.act=id;store.set("phn_perfiles",PR);cargarPerfil();editIdx=-1;pintarAvatar();mForm();mPintar();pintarCanasta();pintarBuscar();pintarFavs();badge()}
 function perfilSheet(){
   const act=PR.lista.find(p=>p.id===PR.act);
   hoja(`<h3 class="t">Perfiles</h3><div class="muted small">Cada perfil tiene su propia lista, canasta e historial de compras. Se guardan en este celular (no hay contraseña).</div>
@@ -937,47 +970,88 @@ $("#v-mercado").addEventListener("change",e=>{if(e.target.id==="mfe"){MK.fecha=e
 
 /* ───── CANASTA ───── */
 
-const cantTotal=()=>Object.values(cart).reduce((a,b)=>a+b,0);
+const cantTotal=()=>Object.keys(cart).length+DATA.libres.length;
 function badge(){const n=cantTotal(),b=$("#bg");b.textContent=n;b.classList.toggle("on",n>0)}
 function guardar(){persist();badge()}
 function agregar(id){
   if(!byId.has(id))return;
-  if(cart[id]){delete cart[id];toast("Quitado de la canasta")}else{cart[id]=1;toast("Agregado a la canasta")}
+  if(cart[id]){delete cart[id];delete DATA.chk[id];toast("Quitado de tu lista")}else{cart[id]=1;toast("Agregado a tu lista")}
   guardar();
   if($("#v-buscar").classList.contains("on"))pintarBuscar();
-  if($("#sheet").classList.contains("on")&&!$("#sb").querySelector("[data-bus]"))$$("#sb [data-add]").forEach(b=>{const on=!!cart[b.dataset.add];b.classList.toggle("in",on);b.innerHTML=on?IC.chk+" En canasta":IC.plus+" Canasta"});
+  if($("#sheet").classList.contains("on")&&!$("#sb").querySelector("[data-bus]"))$$("#sb [data-add]").forEach(b=>{const on=!!cart[b.dataset.add];b.classList.toggle("in",on);b.innerHTML=on?IC.chk+" En mi lista":IC.plus+" A mi lista"});
 }
+const CK='<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
 function pintarCanasta(){
-  const ids=Object.keys(cart);
-  if(!ids.length){$("#cart").innerHTML=`<div class="empty"><b>Tu canasta está vacía</b>Busca productos y toca «Canasta» para sumar el total en cada tienda.
-    <div class="sug"><button class="chip on" id="irb">Ir a buscar</button></div></div>`;return}
-  let tp=0,tc=0,bp=0,bc=0,nb=0,solo=0,h=`<h2>Tu canasta</h2>`;
-  ids.forEach(id=>{
-    const x=byId.get(id),q=cart[id];
+  const ids=Object.keys(cart),lib=DATA.libres,total=ids.length+lib.length;
+  let h=`<div class="card mk" style="margin-bottom:12px"><label class="lab" for="lnew">Agregar a mi lista</label>
+    <div class="pend" style="display:flex;gap:8px"><input class="in2" id="lnew" maxlength="60" placeholder="Ej: pan, jabón… (o búscalo en Buscar)" autocomplete="off" enterkeyhint="done"><button class="btn pri" id="ladd" style="height:48px">Agregar</button></div></div>`;
+  if(!total){
+    h+=`<div class="empty"><b>Tu lista está vacía</b>Escribe lo que necesitas arriba o busca productos y toca «A mi lista» para ver el total en cada tienda.
+     <div class="sug"><button class="chip on" id="irb">Ir a buscar</button><button class="chip" id="lmis">Mis listas guardadas${DATA.listas.length?" ("+DATA.listas.length+")":""}</button></div></div>`;
+    $("#cart").innerHTML=h;return}
+  const hechos=ids.filter(i=>DATA.chk[i]).length+lib.filter(x=>x.ok).length;
+  h+=`<div class="prog"><b>${hechos} de ${total}</b> en el carro<div class="pbar2"><i style="width:${hechos/total*100}%"></i></div></div>`;
+  let tp=0,tc=0,bp=0,bc=0,nb=0,solo=0;
+  const fila=(id)=>{
+    const x=byId.get(id),q=cart[id],ok=!!DATA.chk[id];
     if(x.p)tp+=x.p[0]*q;if(x.c)tc+=x.c[0]*q;
     if(x.p&&x.c){bp+=x.p[0]*q;bc+=x.c[0]*q;nb++}else solo++;
     const im=imgu(x.p?"p":"c",(x.p||x.c)[6]);
-    h+=`<div class="card crow"><div class="im">${im?`<img loading="lazy" referrerpolicy="no-referrer" src="${esc(im)}" alt="" onerror="this.remove()">`:""}</div>
+    return`<div class="card crow ${ok?"done":""}"><button class="ckb ${ok?"on":""}" data-ck="${esc(id)}" aria-label="Marcar en el carro" aria-pressed="${ok}">${CK}</button>
+     <div class="im">${im?`<img loading="lazy" referrerpolicy="no-referrer" src="${esc(im)}" alt="" onerror="this.remove()">`:""}</div>
      <div class="bd"><h3>${esc(x.nm)}</h3><div class="pr"><span class="pz">${x.p?"Paiz "+money(x.p[0]*q):"Paiz —"}</span><span class="co">${x.c?"Colonia "+money(x.c[0]*q):"Colonia —"}</span></div></div>
-     <div class="qty"><button data-q="${esc(id)}" data-d="-1" aria-label="Menos">${IC.min}</button><b>${q}</b><button data-q="${esc(id)}" data-d="1" aria-label="Más">${IC.plus}</button></div></div>`;
-  });
+     <div class="qty"><button data-q="${esc(id)}" data-d="-1" aria-label="Menos">${IC.min}</button><b>${q}</b><button data-q="${esc(id)}" data-d="1" aria-label="Más">${IC.plus}</button></div></div>`};
+  const filaL=(x)=>`<div class="card crow ${x.ok?"done":""}"><button class="ckb ${x.ok?"on":""}" data-ckl="${x.id}" aria-label="Marcar en el carro" aria-pressed="${!!x.ok}">${CK}</button>
+     <div class="bd"><h3>${esc(x.n)}</h3><div class="muted small">Sin precio en el catálogo</div></div>
+     <div class="qty"><button data-ql="${x.id}" data-d="-1" aria-label="Menos">${IC.min}</button><b>${x.q}</b><button data-ql="${x.id}" data-d="1" aria-label="Más">${IC.plus}</button></div></div>`;
+  const falta=ids.filter(i=>!DATA.chk[i]),listo=ids.filter(i=>DATA.chk[i]);
+  h+=falta.map(fila).join("")+lib.filter(x=>!x.ok).map(filaL).join("");
+  const hl=lib.filter(x=>x.ok);
+  if(listo.length||hl.length)h+=`<h2>Ya en el carro</h2>`+listo.map(fila).join("")+hl.map(filaL).join("");
   const dif=bp-bc,gana=dif<0?"p":"c";
-  h+=`<div class="card tot"><div class="lab">Total de tu canasta</div>
+  h+=`<div class="card tot"><div class="lab">Total de tu lista</div>
    <div class="two"><div class="p pz ${nb&&dif<0?"win":""}"><span class="st">Paiz</span><span class="v">${money(tp)}</span></div>
    <div class="p co ${nb&&dif>0?"win":""}"><span class="st">La Colonia</span><span class="v">${money(tc)}</span></div></div>
    ${nb?`<div class="verdict ${dif===0?"eq":"ok"}" style="margin-top:12px">${dif===0?"Los "+nb+" productos que están en ambas cuestan lo mismo.":`En los ${nb} productos que están en las dos tiendas, ${ST[gana].n} te ahorra ${money(Math.abs(dif))}.`}</div>`:""}
    ${solo?`<div class="note">${solo} producto${solo>1?"s":""} solo está${solo>1?"n":""} en una tienda, por eso los totales no son del todo comparables. Usa «Similares» en Buscar para encontrar equivalentes.</div>`:""}
-   <div class="acts" style="margin-top:12px"><button class="btn pri" id="cguardar">Guardar compra</button><button class="btn" id="vaciar">Vaciar canasta</button></div></div>`;
+   ${lib.length?`<div class="note">Lo que escribiste a mano no tiene precio y no suma en el total.</div>`:""}
+   <div class="acts" style="margin-top:12px;flex-wrap:wrap"><button class="btn pri" id="cguardar">Guardar compra</button><button class="btn" id="lsave">Guardar como lista</button><button class="btn" id="lmis">Mis listas${DATA.listas.length?" ("+DATA.listas.length+")":""}</button><button class="btn" id="vaciar">Vaciar</button></div></div>`;
   $("#cart").innerHTML=h;
 }
+function lAgregar(){const n=$("#lnew").value.trim().replace(/\s+/g," ");if(!n)return;
+  DATA.libres.push({id:"l"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),n,q:1,ok:false});guardar();pintarCanasta();$("#lnew").focus()}
 $("#cart").onclick=e=>{
   if(e.target.closest("#irb")){ver("buscar");$("#q").focus();return}
+  if(e.target.closest("#ladd")){lAgregar();return}
   if(e.target.closest("#cguardar")){guardarCanasta();return}
-  if(e.target.closest("#vaciar")){Object.keys(cart).forEach(k=>delete cart[k]);guardar();pintarCanasta();toast("Canasta vacía");return}
+  if(e.target.closest("#lsave")){const n=(prompt("Nombre de la lista (ej: Compra de la quincena):","")||"").trim().slice(0,40);if(!n)return;
+    DATA.listas.push({id:"s"+Date.now().toString(36),n,cat:Object.keys(cart).map(id=>({id,q:cart[id]})),lib:DATA.libres.map(x=>({n:x.n,q:x.q}))});persist();pintarCanasta();toast("Lista guardada: "+n);return}
+  if(e.target.closest("#lmis")){listasSheet();return}
+  if(e.target.closest("#vaciar")){if(confirm("¿Vaciar tu lista?")){Object.keys(cart).forEach(k=>delete cart[k]);DATA.chk={};DATA.libres.length=0;guardar();pintarCanasta();toast("Lista vacía")}return}
+  const ck=e.target.closest("[data-ck]");if(ck){const id=ck.dataset.ck;DATA.chk[id]=!DATA.chk[id];persist();pintarCanasta();return}
+  const cl=e.target.closest("[data-ckl]");if(cl){const x=DATA.libres.find(y=>y.id===cl.dataset.ckl);if(x){x.ok=!x.ok;persist();pintarCanasta()}return}
+  const ql=e.target.closest("[data-ql]");if(ql){const k=DATA.libres.findIndex(y=>y.id===ql.dataset.ql),x=DATA.libres[k];if(x){x.q+=+ql.dataset.d;if(x.q<=0)DATA.libres.splice(k,1);guardar();pintarCanasta()}return}
   const b=e.target.closest("[data-q]");if(!b)return;
   const id=b.dataset.q,n=(cart[id]||0)+(+b.dataset.d);
-  if(n<=0)delete cart[id];else cart[id]=n;guardar();pintarCanasta();
+  if(n<=0){delete cart[id];delete DATA.chk[id]}else cart[id]=n;guardar();pintarCanasta();
 };
+$("#cart").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="lnew")lAgregar()});
+function listasSheet(){
+  let h=`<h3 class="t">Mis listas guardadas</h3><div class="muted small">Toca «Usar» para agregar todo a tu lista de hoy sin volver a escribirlo.</div>`;
+  h+=DATA.listas.length?DATA.listas.map(l=>`<div class="sline"><div class="bd"><h4>${esc(l.n)}</h4><div class="muted small">${l.cat.filter(c=>byId.has(c.id)).length+l.lib.length} productos</div></div>
+    <button class="btn pri" data-lus="${l.id}">Usar</button><button class="btn" data-ldel="${l.id}" aria-label="Borrar" style="color:var(--bad)">Borrar</button></div>`).join("")
+   :`<div class="empty"><b>Aún no tienes listas</b>Arma tu lista y toca «Guardar como lista».</div>`;
+  hoja(h);
+}
+$("#sb").addEventListener("click",e=>{
+  const u=e.target.closest("[data-lus]");
+  if(u){const l=DATA.listas.find(x=>x.id===u.dataset.lus);if(!l)return;
+    l.cat.forEach(c=>{if(byId.has(c.id)){cart[c.id]=(cart[c.id]||0)+c.q;delete DATA.chk[c.id]}});
+    l.lib.forEach(x=>{if(!DATA.libres.some(y=>norm(y.n)===norm(x.n)&&!y.ok))DATA.libres.push({id:"l"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),n:x.n,q:x.q,ok:false})});
+    guardar();cerrar();ver("canasta");toast("Lista cargada: "+l.n);return}
+  const d=e.target.closest("[data-ldel]");
+  if(d&&confirm("¿Borrar esta lista guardada?")){DATA.listas=DATA.listas.filter(x=>x.id!==d.dataset.ldel);persist();listasSheet();pintarCanasta()}
+});
 
 /* Guardar la canasta del súper en el historial */
 function guardarCanasta(){
@@ -986,7 +1060,7 @@ function guardarCanasta(){
    <select class="in2" id="cgt"><option value="m">Cada producto donde es más barato</option><option value="p">Todo en Paiz</option><option value="c">Todo en La Colonia</option></select></div>
    <div class="r2"><div><label class="lab" for="cgf">Fecha</label><input class="in2" id="cgf" type="date" value="${hoy()}"></div>
    <div><label class="lab" for="cgn">Nota (opcional)</label><input class="in2" id="cgn" maxlength="40" placeholder="Ej: quincena"></div></div>
-   <button class="btn pri" id="cgok">Guardar y vaciar canasta</button></div>`);
+   <button class="btn pri" id="cgok">Guardar y vaciar mi lista</button></div>`);
 }
 $("#sb").addEventListener("click",e=>{
   if(!e.target.closest("#cgok"))return;
@@ -999,11 +1073,11 @@ $("#sb").addEventListener("click",e=>{
   const nombre={m:"Paiz + La Colonia",p:"Paiz",c:"La Colonia"}[modo];
   if(omit&&!confirm(omit+" producto"+(omit>1?"s":"")+" no está"+(omit>1?"n":"")+" en esa tienda y no se guarda"+(omit>1?"n":"")+". ¿Seguir?"))return;
   HIST.push({id:"c"+Date.now().toString(36),ts:Date.now(),fecha:$("#cgf").value||hoy(),nota:$("#cgn").value.trim(),tienda:nombre,items:its});
-  Object.keys(cart).forEach(k=>delete cart[k]);guardar();cerrar();pintarCanasta();mPintar();toast("Compra guardada en tu historial");
+  Object.keys(cart).forEach(k=>delete cart[k]);DATA.chk={};DATA.libres.length=0;guardar();cerrar();pintarCanasta();mPintar();toast("Compra guardada en tu historial");
 });
 
 /* ───── arranque ───── */
-hero();pintarLista();$("#cp").value=LISTA[ORD[0]].n;pintarUnidades();calc();pintarBuscar();badge();pintarAvatar();mForm();
+hero();pintarLista();$("#cp").value=LISTA[ORD[0]].n;pintarUnidades();calc();pintarBuscar();badge();pintarAvatar();mForm();pintarFavs();
 const v0=store.get("phn_vista","lista");ver(["lista","calc","buscar","mercado","canasta"].includes(v0)?v0:"lista");
 if("serviceWorker" in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>

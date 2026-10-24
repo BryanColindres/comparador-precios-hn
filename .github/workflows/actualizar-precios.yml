@@ -1,0 +1,53 @@
+name: Actualizar precios
+
+on:
+  schedule:
+    - cron: "0 11 * * 1,4"   # lunes y jueves, 5 a.m. hora de Honduras
+  workflow_dispatch:          # también se puede correr a mano desde la pestaña Actions
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: actualizar-precios
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Bajar precios de Paiz
+        run: python scrapers/scrape_paiz.py
+      - name: Bajar precios de La Colonia
+        run: python scrapers/scrape_lacolonia.py
+      - name: Revisar que los datos no vengan vacíos
+        run: |
+          python - <<'PY'
+          import pandas as pd, sys
+          for f, minimo in (("data/paiz_precios.csv", 2000), ("data/lacolonia_precios.csv", 2000)):
+              n = len(pd.read_csv(f))
+              print(f, n, "filas")
+              if n < minimo:
+                  sys.exit(f"{f} trae solo {n} filas (mínimo {minimo}): no se publica")
+          PY
+      - name: Generar la página
+        run: python generar_comparador.py
+      - name: Publicar si hubo cambios
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add data docs
+          if git diff --cached --quiet; then echo "Sin cambios"; exit 0; fi
+          git commit -m "Precios actualizados $(date -u +%Y-%m-%d)"
+          git push
+          gh api -X POST "repos/${{ github.repository }}/pages/builds" || true
+        env:
+          GH_TOKEN: ${{ github.token }}

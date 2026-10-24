@@ -36,6 +36,14 @@ En 1–2 minutos GitHub Pages publica la versión nueva.
 
 `scrape_lacolonia.py --lista` solo muestra los departamentos; con nombres (`Abarrotes Lácteos`) baja solo esos.
 
+## Actualización automática
+
+`.github/workflows/actualizar-precios.yml` corre los scrapers lunes y jueves, valida que los CSV no vengan vacíos, regenera la página y publica. También se puede correr a mano en la pestaña **Actions → Actualizar precios → Run workflow**. Requiere en el repo: Settings → Actions → General → Workflow permissions → *Read and write*.
+
+## Nube (en preparación)
+
+`supabase/precios_hogar.sql` crea la tabla y las dos funciones para compartir listas e historial entre celulares (aún no conectado a la página).
+
 ## Estructura
 
 ```
