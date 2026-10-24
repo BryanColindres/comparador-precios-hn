@@ -1,7 +1,8 @@
 // Guarda la página para que abra sin señal; se actualiza sola cuando hay internet.
-const C = "precios-hn-v1";
+const C = "precios-hn-v2";
 self.addEventListener("install", e => { self.skipWaiting(); });
-self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
+self.addEventListener("activate", e => e.waitUntil(
+  caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
   if (e.request.method !== "GET" || u.origin !== location.origin) return;

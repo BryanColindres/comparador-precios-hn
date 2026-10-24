@@ -1,137 +1,90 @@
-"""Genera comparador.html (para el celular) desde los CSV de Paiz y La Colonia.
-Uso:  pip install pandas
-      python generar_comparador.py paiz_precios_FECHA.csv lacolonia_precios_FECHA.csv
-Salida: comparador.html  -> pásalo al celular; funciona sin internet (salvo las fotos).
+"""Genera docs/index.html (comparador móvil Paiz vs La Colonia) desde los CSV de data/.
 
-Pestañas: Lista (precio por libra/litro/unidad de lo básico) · Calculadora (precio del
-mercado vs supermercados) · Buscar (todo el catálogo, con precio por unidad).
-La LISTA de abajo es editable: cambia nombres o palabras clave a tu gusto.
+Uso (desde la raíz del repo):
+    python generar_comparador.py
+    python generar_comparador.py paiz.csv lacolonia.csv      # CSV en otra ruta
+
+Cómo se relacionan los productos entre tiendas:
+  1. Código de barras (EAN): mismo producto exacto.
+  2. Coincidencia probable: misma marca, mismo tamaño (±2 %) y nombre muy parecido.
+  3. En la página, "Similares" busca alternativas del mismo tipo y tamaño en la otra tienda.
+La lista de productos básicos (LISTA) se puede editar más abajo.
 """
-import re, sys, json, unicodedata, warnings
+import bisect
+import json
+import math
+import re
+import sys
+import unicodedata
+import warnings
+from pathlib import Path
+
 import pandas as pd
 
 warnings.filterwarnings("ignore", message="This pattern is interpreted")
 
-# (grupo, etiqueta, regex que debe aparecer, regex que NO debe aparecer, unidad: lb | L | u)
-# Las regex se aplican al nombre del producto sin tildes y en minúsculas.
-NO_PROC = r"salsa|pasta de|jugo|ketchup|kechup|enlatad|pure|sopa|encurtid|snack|chips|papitas|frita|congelad|mermelada|dulce de|deshidratad|polvo|saborizad|sabor a|galleta|cereal|yogurt|helado|vinagre|aderezo|mayonesa|condimento"
-LISTA = [
-    ("Verduras", "Tomate", r"\btomate", NO_PROC + r"|secos", "lb"),
-    ("Verduras", "Cebolla", r"\bcebolla", NO_PROC + r"|polvo|morada", "lb"),
-    ("Verduras", "Papa", r"\bpapa\b|\bpapas\b", NO_PROC, "lb"),
-    ("Verduras", "Chile dulce", r"chile (dulce|pimiento)|pimiento", NO_PROC, "lb"),
-    ("Verduras", "Zanahoria", r"zanahoria", NO_PROC, "lb"),
-    ("Verduras", "Repollo", r"repollo", NO_PROC, "lb"),
-    ("Verduras", "Pepino", r"pepino", NO_PROC, "lb"),
-    ("Verduras", "Lechuga", r"lechuga", NO_PROC, "lb"),
-    ("Verduras", "Ajo", r"\bajo\b|\bajos\b", NO_PROC + r"|molido|salsa", "lb"),
-    ("Verduras", "Güisquil", r"guisquil|chayote", NO_PROC, "lb"),
-    ("Verduras", "Yuca", r"\byuca", NO_PROC, "lb"),
-    ("Verduras", "Aguacate", r"aguacate", NO_PROC + r"|aceite", "lb"),
-    ("Frutas", "Plátano", r"platano", NO_PROC + r"|tostone|maduro frito", "lb"),
-    ("Frutas", "Banano", r"banano|guineo", NO_PROC, "lb"),
-    ("Frutas", "Naranja", r"\bnaranja", NO_PROC, "lb"),
-    ("Frutas", "Limón", r"\blimon", NO_PROC, "lb"),
-    ("Frutas", "Manzana", r"\bmanzana", NO_PROC, "lb"),
-    ("Frutas", "Sandía", r"sandia", NO_PROC, "lb"),
-    ("Frutas", "Piña", r"\bpina\b", NO_PROC, "lb"),
-    ("Frutas", "Mango", r"\bmango", NO_PROC, "lb"),
-    ("Frutas", "Papaya", r"papaya", NO_PROC, "lb"),
-    ("Carnes", "Pechuga de pollo", r"pechuga", NO_PROC + r"|empanizad|nugget", "lb"),
-    ("Carnes", "Muslo de pollo", r"muslo|encuentro", NO_PROC + r"|empanizad", "lb"),
-    ("Carnes", "Pollo entero", r"pollo entero|pollo fresco", NO_PROC, "lb"),
-    ("Carnes", "Carne molida de res", r"molida|molido", NO_PROC + r"|cerdo|pollo|pavo", "lb"),
-    ("Carnes", "Carne para asar (res)", r"\basar\b", NO_PROC + r"|cerdo|pollo", "lb"),
-    ("Carnes", "Costilla de cerdo", r"costilla", NO_PROC + r"|res\b", "lb"),
-    ("Carnes", "Chuleta de cerdo", r"chuleta", NO_PROC, "lb"),
-    ("Carnes", "Chorizo", r"chorizo", NO_PROC, "lb"),
-    ("Carnes", "Tocino", r"tocino", NO_PROC, "lb"),
-    ("Carnes", "Tilapia / pescado", r"tilapia|pescado", NO_PROC + r"|enlatad|atun|sardina", "lb"),
-    ("Granos y despensa", "Frijol rojo", r"frijol", NO_PROC + r"|molido|refrito|enlatad|negro|blanco", "lb"),
-    ("Granos y despensa", "Arroz", r"\barroz\b", NO_PROC + r"|con leche|pollo", "lb"),
-    ("Granos y despensa", "Azúcar", r"azucar", NO_PROC + r"|sin azucar|splenda|stevia", "lb"),
-    ("Granos y despensa", "Sal", r"\bsal\b", NO_PROC + r"|aderezo|con ajo", "lb"),
-    ("Granos y despensa", "Harina de maíz", r"harina.*maiz|maiz.*harina|masa de maiz|maseca", NO_PROC, "lb"),
-    ("Granos y despensa", "Pasta / espagueti", r"espagueti|spaghetti|fideo|macarron", NO_PROC + r"|salsa", "lb"),
-    ("Granos y despensa", "Café molido", r"cafe", NO_PROC + r"|capuchino|instantaneo|soluble|3 en 1", "lb"),
-    ("Granos y despensa", "Aceite vegetal", r"aceite", NO_PROC + r"|oliva|aguacate|coco|spray|motor", "L"),
-    ("Lácteos y huevos", "Huevo", r"\bhuevo", NO_PROC + r"|codorniz|liquido|pascua", "u"),
-    ("Lácteos y huevos", "Leche líquida", r"\bleche\b", NO_PROC + r"|polvo|condensada|evaporada|coco|chocolate|fresa|soya|almendra|avena", "L"),
-    ("Lácteos y huevos", "Queso", r"\bqueso", NO_PROC + r"|rallado|crema|untable", "lb"),
-    ("Lácteos y huevos", "Mantequilla", r"mantequilla", NO_PROC + r"|mani|cacahuate", "lb"),
-    ("Panadería", "Tortillas", r"tortilla", NO_PROC + r"|chips|tostada|totopo|nacho", "u"),
-]
-
-# Categoría de la tienda donde debe estar el producto (regex sobre la ruta de categoría
-# sin tildes, en minúsculas) y exclusiones extra por producto. Sin entrada = sin filtro.
-VERD = r"frutas y verduras"
-CATS = {
-    "Tomate": VERD, "Cebolla": VERD, "Papa": VERD, "Chile dulce": VERD, "Zanahoria": VERD,
-    "Repollo": VERD, "Pepino": VERD, "Lechuga": VERD, "Ajo": VERD, "Güisquil": VERD,
-    "Yuca": VERD, "Aguacate": VERD, "Plátano": VERD, "Banano": VERD, "Naranja": VERD,
-    "Limón": VERD, "Manzana": VERD, "Sandía": VERD, "Piña": VERD, "Mango": VERD, "Papaya": VERD,
-    "Pechuga de pollo": r"carnes|pollo", "Muslo de pollo": r"carnes|pollo",
-    "Pollo entero": r"carnes|pollo", "Carne molida de res": r"carnes|\bres\b",
-    "Carne para asar (res)": r"carnes|\bres\b", "Costilla de cerdo": r"carnes|cerdo",
-    "Chuleta de cerdo": r"carnes|cerdo", "Chorizo": r"embutidos", "Tocino": r"embutidos|tocino",
-    "Tilapia / pescado": r"pescados|mariscos",
-    "Frijol rojo": r"arroz, frijol|frijoles", "Arroz": r"arroz", "Azúcar": r"azucar|endulzante",
-    "Sal": r"sal y condimentos|sopas, cremas y condimentos|especias",
-    "Harina de maíz": r"harina", "Pasta / espagueti": r"pastas", "Café molido": r"cafe",
-    "Aceite vegetal": r"aceites", "Huevo": r"huevo",
-    "Leche líquida": r"leche entera|leche semi|deslactosada|leches liquidas",
-    "Queso": r"queso", "Mantequilla": r"mantequilla", "Tortillas": r"tortill",
-}
-EXTRA_EXC = {
-    "Pechuga de pollo": r"pavo|jamon", "Limón": r"albahaca|hierba|menta|te ",
-    "Sal": r"pimienta|ajo|cebolla|adobo|aderezo|condimento",
-    "Tilapia / pescado": r"cabeza|enlatad|gato|perro",
-    "Pollo entero": r"menudo|fajita|pechuga|muslo|pierna|alas|molid|marinad|pavo|encuentro|filete|nugget|empaniz|caldo|hueso",
-    "Plátano": r"precocid|tajada", "Café molido": r"crema|listo|te |betun|soluble",
-    "Pasta / espagueti": r"salsa|instantane", "Mantequilla": r"mani|avellana|margarina",
-    "Leche líquida": r"saborizada|malteada|bebida de",
-    "Aceite vegetal": r"spray|oliva|manteca", "Tortillas de maíz": r"trigo|harina",
-    "Huevo": r"chocolate|pascua", "Chorizo": r"pack|kimby",
-    "Frijol rojo": r"molido|refrito|enlatad|instantane|negro",
-}
-
-from pathlib import Path
-
 RAIZ = Path(__file__).resolve().parent
-# Sin argumentos usa data/paiz_precios.csv y data/lacolonia_precios.csv y escribe docs/index.html
 CSV_PAIZ = Path(sys.argv[1]) if len(sys.argv) > 1 else RAIZ / "data" / "paiz_precios.csv"
 CSV_COL = Path(sys.argv[2]) if len(sys.argv) > 2 else RAIZ / "data" / "lacolonia_precios.csv"
 SALIDA = RAIZ / "docs"
-for f in (CSV_PAIZ, CSV_COL):
+PLANTILLA = RAIZ / "plantilla.html"
+for f in (CSV_PAIZ, CSV_COL, PLANTILLA):
     if not f.exists():
         sys.exit(f"No encuentro {f}. Corre primero los scrapers (carpeta scrapers/).")
 
 
+# ───────────────────────── Normalización de texto ─────────────────────────
 def norm(s):
     s = unicodedata.normalize("NFD", str(s).lower())
     return "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
 
 
+def stem(t):
+    """huevos -> huevo, papas -> papa (singular simple)."""
+    return t[:-1] if len(t) > 3 and t.endswith("s") and not t.endswith("ss") else t
+
+
+STOP = set("""de del la el los las con sin x un una y en por para al a o e pack paquete bolsa bandeja caja
+frasco botella lata unidad unidades und unds uds u gr g kg kgs lb lbs libra libras oz ml l lt lts litro litros
+aprox aproximadamente precio indicado venta granel fresco fresca""".split())
+GENERICAS = {"sin marca", "generico", "no aplica", "na", ""}
+
+
+def toks(s):
+    out = []
+    for t in re.findall(r"[a-z0-9]+", norm(s)):
+        out += ["great", "value"] if t == "gv" else [t]
+    return out
+
+
+def nucleo(nombre, marca):
+    """Palabras significativas del nombre (sin marca, tamaños ni relleno)."""
+    bt = {stem(t) for t in toks(marca)}
+    return frozenset(w for w in (stem(t) for t in toks(nombre))
+                     if w not in STOP and w not in bt and not re.search(r"\d", w))
+
+
+# ───────────────────────── Tamaños y precio por unidad ─────────────────────
 W = {"kg": 2.20462, "kgs": 2.20462, "g": 1 / 453.592, "gr": 1 / 453.592, "grs": 1 / 453.592,
      "lb": 1, "lbs": 1, "libra": 1, "libras": 1, "oz": 1 / 16}
 V = {"ml": 1 / 1000, "l": 1, "lt": 1, "lts": 1, "litro": 1, "litros": 1}
-U = ("u", "und", "unid", "unidad", "unidades", "un", "unds")
-UNIT_RE = r"(kgs?|grs?|g|lbs?|libras?|oz|ml|lts?|litros?|l|unidades|unidad|unids?|unds?|und|un|u)"
+U = ("u", "ud", "uds", "und", "unid", "unidad", "unidades", "un", "unds")
+UNIT_RE = r"(kgs?|grs?|g|lbs?|libras?|oz|ml|lts?|litros?|l|unidades|unidad|unids?|unds?|und|uds?|un|u)"
 
 
 def unidad(nombre, precio):
-    """Devuelve (precio por unidad, 'lb'|'L'|'u') o (None, None) si no se puede leer."""
+    """(precio por unidad, 'lb'|'L'|'u', cantidad total en lb/L/unidades) o (None, None, None)."""
     n = norm(nombre)
     if re.search(r"por libra|por lb|x lb\b|/lb\b", n):
-        return precio, "lb"
+        return precio, "lb", 1.0
     # "…Libra - 2 a 4 Unidades aprox." = precio por libra (salvo que indique "2 Lb" de peso)
     if re.search(r"\blibra\b", n) and not re.search(r"\d\s*(lbs?|libras?)\b", n):
-        return precio, "lb"
-    m = re.search(r"(\d+)\s*(?:x|pack de|pk)\s*(\d+(?:[.,]\d+)?)\s*" + UNIT_RE + r"\b", n)
+        return precio, "lb", 1.0
     mult = 1
     fr = re.search(r"(\d+)\s*/\s*(\d+)\s*" + UNIT_RE + r"\b", n)  # "1/2 Lb"
+    m = re.search(r"(\d+)\s*(?:x|pack de|pk)\s*(\d+(?:[.,]\d+)?)\s*" + UNIT_RE + r"\b", n)
     if fr and int(fr.group(2)) > 0:
-        mult, cant, u = 1, int(fr.group(1)) / int(fr.group(2)), fr.group(3)
+        cant, u = int(fr.group(1)) / int(fr.group(2)), fr.group(3)
     elif m:
         mult, cant, u = int(m.group(1)), float(m.group(2).replace(",", ".")), m.group(3)
     else:
@@ -139,11 +92,11 @@ def unidad(nombre, precio):
         if not m:
             # "X Unidad", "Venta Por Unidad", "... Un" al final = precio de 1 unidad
             if re.search(r"(\bx|\bpor)\s*unidad\b|\bunidad$|\bun$", n):
-                return precio, "u"
-            return None, None
+                return precio, "u", 1.0
+            return None, None, None
         cant, u = float(m.group(1).replace(",", ".")), m.group(2)
     if cant <= 0:
-        return None, None
+        return None, None, None
     if u in W:
         tot, et = cant * mult * W[u], "lb"
     elif u in V:
@@ -151,23 +104,44 @@ def unidad(nombre, precio):
     elif u in U:
         tot, et = cant * mult, "u"
     else:
-        return None, None
-    return (precio / tot, et) if tot > 0 else (None, None)
+        return None, None, None
+    return (precio / tot, et, tot) if tot > 0 else (None, None, None)
 
 
+def canonico(et, tot):
+    """Cantidad en gramos, mililitros o unidades (para comparar tamaños)."""
+    return {"lb": tot * 453.592, "L": tot * 1000}.get(et, tot) if et else None
+
+
+def tam(et, q):
+    if not et or not q:
+        return ""
+    if et == "lb":
+        if abs(q - 453.592) < 2:
+            return "1 lb"
+        return f"{q/1000:.3g} kg" if q >= 1000 else f"{q:.0f} g"
+    if et == "L":
+        return f"{q/1000:.3g} L" if q >= 1000 else f"{q:.0f} ml"
+    return f"{q:g} u"
+
+
+# ───────────────────────── Carga de CSV ─────────────────────────
 def cargar(ruta):
     df = pd.read_csv(ruta, dtype={"ean": str, "sku": str})
     # Paiz usa 13 dígitos (con 0 adelante) y La Colonia a veces 12: se igualan quitando
     # ceros a la izquierda. Códigos de menos de 8 dígitos (PLU internos) no se cruzan.
     df["ean"] = df["ean"].fillna("").str.strip().str.lstrip("0")
     df.loc[df["ean"].str.len() < 8, "ean"] = ""
+    df["marca"] = df["marca"].fillna("")
     df = df[df["precio_actual"].fillna(0) > 0].copy()
     df = df.sort_values("precio_actual").drop_duplicates(["ean", "sku"])
-    res = df.apply(lambda r: unidad(r["producto"], float(r["precio_actual"])), axis=1)
+    res = [unidad(r, float(pr)) for r, pr in zip(df["producto"], df["precio_actual"])]
     df["up"] = [x[0] for x in res]
     df["ul"] = [x[1] for x in res]
+    df["qty"] = [canonico(x[1], x[2]) for x in res]
     df["nn"] = df["producto"].map(norm)
     df["cn"] = df["categoria"].map(norm)
+    df["core"] = [nucleo(a, b) for a, b in zip(df["producto"], df["marca"])]
     return df
 
 
@@ -176,172 +150,260 @@ fecha_p = str(pd.read_csv(CSV_PAIZ, usecols=["fecha"])["fecha"].iloc[0])
 fecha_c = str(pd.read_csv(CSV_COL, usecols=["fecha"])["fecha"].iloc[0])
 
 
-def mejor(df, etiqueta, inc, exc, ul, minimo=0):
-    exc = exc + (("|" + EXTRA_EXC[etiqueta]) if etiqueta in EXTRA_EXC else "")
-    m = (df["ul"] == ul) & df["nn"].str.contains(inc, regex=True) \
-        & ~df["nn"].str.contains(exc, regex=True)
-    if etiqueta in CATS:
-        m &= df["cn"].str.contains(CATS[etiqueta], regex=True)
+def prefijo_img(df):
+    imgs = [x for x in df["imagen_url"].dropna() if isinstance(x, str)]
+    pre = __import__("os").path.commonprefix(imgs) if imgs else ""
+    return pre[: pre.rfind("/") + 1]
+
+
+PFX = {"p": {"u": "https://www.paiz.com.hn", "i": prefijo_img(p)},
+       "c": {"u": "https://www.lacolonia.com", "i": prefijo_img(c)}}
+
+
+def rel(valor, prefijo):
+    v = valor if isinstance(valor, str) else ""
+    return v[len(prefijo):] if prefijo and v.startswith(prefijo) else v
+
+
+# ───────────────────────── Lista de productos básicos ─────────────────────────
+NO_PROC = (r"salsa|pasta de|jugo|ketchup|kechup|enlatad|pure|sopa|encurtid|snack|chips|papitas|frita|congelad|"
+           r"mermelada|dulce de|deshidratad|polvo|saborizad|sabor a|galleta|cereal|yogurt|helado|vinagre|aderezo|"
+           r"mayonesa|condimento")
+VERD = r"frutas y verduras"
+
+
+def it(g, n, inc, exc="", u="lb", cat=None, qty=None):
+    """g=grupo, n=nombre, inc=regex que debe aparecer, exc=regex que NO debe aparecer,
+    u=unidad (lb|L|u), cat=regex de la categoría de la tienda, qty=tamaño exacto del empaque."""
+    return {"g": g, "n": n, "inc": inc, "exc": NO_PROC + (("|" + exc) if exc else ""),
+            "u": u, "cat": cat, "qty": qty}
+
+
+LISTA = [
+    it("Verduras", "Tomate", r"\btomate", "secos", cat=VERD),
+    it("Verduras", "Cebolla", r"\bcebolla", "polvo|morada", cat=VERD),
+    it("Verduras", "Papa", r"\bpapa\b|\bpapas\b", cat=VERD),
+    it("Verduras", "Chile dulce", r"chile (dulce|pimiento)|pimiento", cat=VERD),
+    it("Verduras", "Zanahoria", r"zanahoria", cat=VERD),
+    it("Verduras", "Repollo", r"repollo", cat=VERD),
+    it("Verduras", "Pepino", r"pepino", cat=VERD),
+    it("Verduras", "Lechuga", r"lechuga", cat=VERD),
+    it("Verduras", "Ajo", r"\bajo\b|\bajos\b", "molido|salsa", cat=VERD),
+    it("Verduras", "Güisquil", r"guisquil|chayote", cat=VERD),
+    it("Verduras", "Yuca", r"\byuca", cat=VERD),
+    it("Verduras", "Aguacate", r"aguacate", "aceite", cat=VERD),
+    it("Frutas", "Plátano", r"platano", "tostone|maduro frito|precocid|tajada", cat=VERD),
+    it("Frutas", "Banano", r"banano|guineo", cat=VERD),
+    it("Frutas", "Naranja", r"\bnaranja", cat=VERD),
+    it("Frutas", "Limón", r"\blimon", "albahaca|hierba|menta|te ", cat=VERD),
+    it("Frutas", "Manzana", r"\bmanzana", cat=VERD),
+    it("Frutas", "Sandía", r"sandia", cat=VERD),
+    it("Frutas", "Piña", r"\bpina\b", cat=VERD),
+    it("Frutas", "Mango", r"\bmango", cat=VERD),
+    it("Frutas", "Papaya", r"papaya", cat=VERD),
+    it("Carnes", "Pechuga de pollo", r"pechuga", "empanizad|nugget|pavo|jamon", cat=r"carnes|pollo"),
+    it("Carnes", "Muslo de pollo", r"muslo|encuentro", "empanizad", cat=r"carnes|pollo"),
+    it("Carnes", "Pollo entero", r"pollo entero|pollo fresco",
+       "menudo|fajita|pechuga|muslo|pierna|alas|molid|marinad|pavo|encuentro|filete|nugget|empaniz|caldo|hueso",
+       cat=r"carnes|pollo"),
+    it("Carnes", "Carne molida de res", r"molida|molido", "cerdo|pollo|pavo", cat=r"carnes|\bres\b"),
+    it("Carnes", "Carne para asar (res)", r"\basar\b", "cerdo|pollo", cat=r"carnes|\bres\b"),
+    it("Carnes", "Costilla de cerdo", r"costilla", r"res\b", cat=r"carnes|cerdo"),
+    it("Carnes", "Chuleta de cerdo", r"chuleta", cat=r"carnes|cerdo"),
+    it("Carnes", "Chorizo", r"chorizo", "pack|kimby", cat=r"embutidos"),
+    it("Carnes", "Tocino", r"tocino", cat=r"embutidos|tocino"),
+    it("Carnes", "Tilapia / pescado", r"tilapia|pescado", "enlatad|atun|sardina|cabeza|gato|perro",
+       cat=r"pescados|mariscos"),
+    it("Granos y despensa", "Frijol rojo", r"frijol", "molido|refrito|enlatad|negro|blanco|instantane",
+       cat=r"arroz, frijol|frijoles"),
+    it("Granos y despensa", "Arroz", r"\barroz\b", "con leche|pollo", cat=r"arroz"),
+    it("Granos y despensa", "Azúcar", r"azucar", "sin azucar|splenda|stevia", cat=r"azucar|endulzante"),
+    it("Granos y despensa", "Sal", r"\bsal\b", "aderezo|con ajo|pimienta|ajo|cebolla|adobo|condimento",
+       cat=r"sal y condimentos|sopas, cremas y condimentos|especias"),
+    it("Granos y despensa", "Harina de maíz", r"harina.*maiz|maiz.*harina|masa de maiz|maseca", cat=r"harina"),
+    it("Granos y despensa", "Pasta / espagueti", r"espagueti|spaghetti|fideo|macarron", "salsa|instantane",
+       cat=r"pastas"),
+    it("Granos y despensa", "Café molido", r"cafe", "capuchino|instantaneo|soluble|3 en 1|crema|listo|te |betun",
+       cat=r"cafe"),
+    it("Granos y despensa", "Aceite vegetal", r"aceite", "oliva|aguacate|coco|spray|motor|manteca", u="L",
+       cat=r"aceites"),
+    it("Lácteos y huevos", "Huevo · 30 unidades", r"\bhuevo", "codorniz|liquido|pascua|chocolate", u="u",
+       cat=r"huevo", qty=30),
+    it("Lácteos y huevos", "Huevo · 15 unidades", r"\bhuevo", "codorniz|liquido|pascua|chocolate", u="u",
+       cat=r"huevo", qty=15),
+    it("Lácteos y huevos", "Huevo · 20 unidades", r"\bhuevo", "codorniz|liquido|pascua|chocolate", u="u",
+       cat=r"huevo", qty=20),
+    it("Lácteos y huevos", "Leche líquida", r"\bleche\b",
+       "polvo|condensada|evaporada|coco|chocolate|fresa|soya|almendra|avena|saborizada|malteada|bebida de",
+       u="L", cat=r"leche entera|leche semi|deslactosada|leches liquidas"),
+    it("Lácteos y huevos", "Queso", r"\bqueso", "rallado|crema|untable", cat=r"queso"),
+    it("Lácteos y huevos", "Mantequilla", r"mantequilla", "mani|cacahuate|avellana|margarina",
+       cat=r"mantequilla"),
+    it("Panadería", "Tortillas", r"tortilla", "chips|tostada|totopo|nacho", u="u", cat=r"tortill"),
+]
+
+
+def mejor(df, e, ul, minimo=0):
+    m = (df["ul"] == ul) & df["nn"].str.contains(e["inc"], regex=True) \
+        & ~df["nn"].str.contains(e["exc"], regex=True)
+    if e["cat"]:
+        m &= df["cn"].str.contains(e["cat"], regex=True)
+    if e["qty"]:
+        m &= (df["qty"] - e["qty"]).abs() <= 0.01 * e["qty"]
     d = df[m]
     if d.empty:
         return None
     med = d["up"].median()
-    d = d[(d["up"] >= 0.15 * med) & (d["up"] >= minimo)]  # descarta precios absurdamente bajos por errores de tamaño en el nombre
+    d = d[(d["up"] >= 0.15 * med) & (d["up"] >= minimo)]  # descarta errores de tamaño en el nombre
     if d.empty:
         return None
     r = d.sort_values("up").iloc[0]
-    # [precio por unidad más bajo, producto, precio del empaque, precio típico (mediana), # productos, unidad]
+    # [precio por unidad más bajo, producto, precio del empaque, precio típico (mediana), # de productos,
+    #  tamaño, imagen, link]
     return [round(float(r["up"]), 2), r["producto"], round(float(r["precio_actual"]), 2),
-            round(float(d["up"].median()), 2), int(len(d)), ul]
+            round(float(d["up"].median()), 2), int(len(d)), tam(r["ul"], r["qty"]),
+            r["imagen_url"] if isinstance(r["imagen_url"], str) else "", r["url"]]
 
 
-def buscar(df, g, n, i, e, u):
-    prod = g in ("Verduras", "Frutas")
-    r = mejor(df, n, i, e, u, minimo=3 if prod and u == "lb" else 0)  # fruta/verdura < L.3/lb = error de dato
-    if r is None and prod and u == "lb":
-        r = mejor(df, n, i, e, "u")  # muchas frutas/verduras se venden por unidad
-    return r
+def por_tienda(df, tienda, e):
+    prod = e["g"] in ("Verduras", "Frutas")
+    out = {}
+    r = mejor(df, e, e["u"], minimo=3 if prod and e["u"] == "lb" else 0)  # fruta/verdura < L.3/lb = error
+    if r:
+        out[e["u"]] = r
+    if prod and e["u"] == "lb":
+        r2 = mejor(df, e, "u")  # muchas frutas/verduras se venden por unidad
+        if r2:
+            out["u"] = r2
+    for v in out.values():
+        v[6], v[7] = rel(v[6], PFX[tienda]["i"]), rel(v[7], PFX[tienda]["u"])
+    return out
 
 
-lista = [{"g": g, "n": n, "u": u, "p": buscar(p, g, n, i, e, u), "c": buscar(c, g, n, i, e, u)}
-         for g, n, i, e, u in LISTA]
-print("Lista fija: encontró", sum(1 for x in lista if x["p"]), "en Paiz y",
-      sum(1 for x in lista if x["c"]), "en La Colonia de", len(lista))
+lista = [{"g": e["g"], "n": e["n"], "u": e["u"], "p": por_tienda(p, "p", e), "c": por_tienda(c, "c", e)}
+         for e in LISTA]
+print("Lista fija: Paiz", sum(1 for x in lista if x["p"]), "· La Colonia", sum(1 for x in lista if x["c"]),
+      "de", len(lista))
 print("Sin resultado:", [x["n"] for x in lista if not x["p"] and not x["c"]])
 
 
-def fila(r):
-    pl = round(float(r["precio_lista"]), 2) if pd.notna(r.get("precio_lista")) else 0
-    up = round(float(r["up"]), 2) if pd.notna(r["up"]) else 0
-    return [round(float(r["precio_actual"]), 2), pl, up, r["ul"] if isinstance(r["ul"], str) else ""]
+# ───────────────────────── Relación entre tiendas ─────────────────────────
+def registro(r, tienda):
+    return {"t": tienda, "id": f'{tienda}{r["sku"]}', "ean": r["ean"], "nombre": r["producto"],
+            "marca": r["marca"], "precio": float(r["precio_actual"]),
+            "lista": float(r["precio_lista"]) if pd.notna(r["precio_lista"]) else 0.0,
+            "up": r["up"] if pd.notna(r["up"]) else None,
+            "ul": r["ul"] if isinstance(r["ul"], str) else None,
+            "qty": r["qty"] if pd.notna(r["qty"]) else None,
+            "url": r["url"], "img": r["imagen_url"], "core": r["core"],
+            "bt": frozenset(stem(t) for t in toks(r["marca"]) if stem(t) not in STOP)}
 
 
-def img(r):
-    return r.get("imagen_url") if isinstance(r.get("imagen_url"), str) else ""
+def lado(r):
+    t = r["t"]
+    return [round(r["precio"], 2), round(r["lista"], 2), round(r["up"], 2) if r["up"] else 0, r["ul"] or "",
+            round(r["qty"], 1) if r["qty"] else 0, rel(r["url"], PFX[t]["u"]),
+            rel(r["img"], PFX[t]["i"]), r["nombre"], " ".join(sorted(r["core"])), tam(r["ul"], r["qty"])]
 
 
-pe = {r["ean"]: r for _, r in p.iterrows() if r["ean"]}
-ce = {r["ean"]: r for _, r in c.iterrows() if r["ean"]}
-items = []
-for e in set(pe) | set(ce):
-    a, b = pe.get(e), ce.get(e)
-    base = a if a is not None else b
-    items.append({"e": e, "n": base["producto"], "m": base.get("marca") or "",
-                  "i": img(a) if a is not None and img(a) else (img(b) if b is not None else ""),
-                  "p": fila(a) if a is not None else None, "c": fila(b) if b is not None else None})
-for tienda, df in (("p", p), ("c", c)):
-    for _, r in df[df["ean"] == ""].iterrows():
-        items.append({"e": "", "n": r["producto"], "m": r.get("marca") or "", "i": img(r),
-                      "p": fila(r) if tienda == "p" else None,
-                      "c": fila(r) if tienda == "c" else None})
+P = [registro(r, "p") for r in p.to_dict("records")]
+C = [registro(r, "c") for r in c.to_dict("records")]
 
-PLANTILLA = r"""<!doctype html><html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Precios HN</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1b1f24">
-<style>
-:root{--bg:#f6f7f9;--cd:#fff;--tx:#1b1f24;--mu:#6b7280;--bd:#e3e6ea;--ok:#15803d;--ba:#b91c1c}
-@media(prefers-color-scheme:dark){:root{--bg:#0f1317;--cd:#1a2027;--tx:#e8ecf0;--mu:#98a2b0;--bd:#2b333c;--ok:#4ade80;--ba:#f87171}}
-*{box-sizing:border-box}body{margin:0;font:16px/1.35 system-ui,sans-serif;background:var(--bg);color:var(--tx)}
-.tabs{position:sticky;top:0;z-index:5;display:flex;background:var(--cd);border-bottom:1px solid var(--bd)}
-.tabs button{flex:1;padding:13px 4px;font:inherit;font-weight:600;border:0;background:none;color:var(--mu);border-bottom:3px solid transparent}
-.tabs .on{color:var(--tx);border-color:var(--tx)}
-.pane{display:none;padding-bottom:30px}.pane.on{display:block}
-.mt{color:var(--mu);font-size:12px;padding:8px 12px}
-h3{margin:14px 12px 4px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--mu)}
-.hd,.rw{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:6px;padding:8px 12px;align-items:center}
-.hd{font-size:11px;color:var(--mu);padding-top:2px}
-.rw{background:var(--cd);border-top:1px solid var(--bd);font-size:15px}
-.rw .nm{font-weight:600}.rw small{display:block;color:var(--mu);font-size:10.5px;font-weight:400;line-height:1.2;
- overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.pc{font-weight:700}.w{color:var(--ok)}.l{color:var(--ba)}.ut{font-size:11px;color:var(--mu)}
-.cal{padding:12px}.cal label{display:block;font-size:13px;color:var(--mu);margin:10px 0 4px}
-select,input{width:100%;font:inherit;padding:13px;border:1px solid var(--bd);border-radius:10px;background:var(--cd);color:var(--tx)}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.res{margin-top:16px;background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:14px}
-.res .big{font-size:20px;font-weight:700}.res .ln{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--bd);margin-top:6px}
-.cd{display:flex;gap:10px;background:var(--cd);border:1px solid var(--bd);border-radius:12px;margin:8px 10px;padding:10px}
-.cd img{width:60px;height:60px;object-fit:contain;background:#fff;border-radius:8px;flex:none}
-.cd .nm{font-weight:600;font-size:14px}.br{color:var(--mu);font-size:12px}
-.pr{display:flex;gap:8px;margin-top:6px}.pr div{flex:1;border:1px solid var(--bd);border-radius:8px;padding:5px 8px;font-size:13px}
-.pr small{display:block;color:var(--mu);font-size:11px}.pr .win{border-color:var(--ok);color:var(--ok)}
-.pr s{color:var(--mu);font-size:11px}
-</style></head><body>
-<div class="tabs"><button data-t="t1" class="on">Lista</button><button data-t="t2">Calculadora</button><button data-t="t3">Buscar</button></div>
-<div id="t1" class="pane on"><div class="mt" id="info"></div>
-<div class="hd" style="padding-top:8px"><span></span><span>Paiz</span><span>La Colonia</span></div><div id="lista"></div></div>
-<div id="t2" class="pane"><div class="cal">
-<label>Producto</label><select id="cp"></select>
-<div class="two"><div><label>Precio en el mercado (L.)</label><input id="cpr" type="number" inputmode="decimal" placeholder="20"></div>
-<div><label>Cantidad</label><input id="cca" type="number" inputmode="decimal" placeholder="3" value="1"></div></div>
-<label>Unidad</label><select id="cun"></select>
-<div class="res" id="cres"><span class="mt">Escribe el precio y la cantidad.</span></div></div></div>
-<div id="t3" class="pane"><div style="padding:10px"><input id="q" type="search" placeholder="Buscar producto o marca…" autocomplete="off"></div>
-<div id="out"></div></div>
-<script>
-const LISTA=__LISTA__,D=__DATA__,FP="__FP__",FC="__FC__";
-const $=i=>document.getElementById(i),L=n=>"L. "+n.toFixed(2),ET={lb:"lb",L:"litro",u:"unidad"};
-const UN={lb:[["lb",1],["kg",2.20462],["g",1/453.592],["oz",1/16]],L:[["litro",1],["ml",.001]],u:[["unidad",1],["docena",12]]};
-function norm(s){return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"")}
-// ---- Calculadora (función pura, para poder probarla)
-function calcular(it,precio,cant,fac){
-  if(!(precio>0&&cant>0))return null;
-  const mer=precio/(cant*fac);
-  const r={mer,unidad:ET[it.u],tiendas:[]};
-  for(const[n,s]of[["Paiz",it.p],["La Colonia",it.c]]){
-    if(!s){r.tiendas.push({n,sin:true});continue}
-    if(s[5]!==it.u){r.tiendas.push({n,otra:ET[s[5]],up:s[0],prod:s[1]});continue}
-    const d=mer-s[0];r.tiendas.push({n,up:s[0],prod:s[1],d,pct:d/s[0]*100});
-  }return r}
-// ---- Lista
-$("info").textContent="Paiz al "+FP+" · La Colonia al "+FC+". Precio más bajo encontrado por categoría; revisa el nombre.";
-let h="",g="";
-LISTA.forEach((x,i)=>{
-  if(x.g!=g){g=x.g;h+=`<h3>${g}</h3>`}
-  const a=x.p,b=x.c,w=a&&b&&a[5]==b[5]?(a[0]<b[0]?"p":a[0]>b[0]?"c":""):"";
-  const cel=(s,k)=>s?`<div><span class="pc ${w&&w==k?"w":w?"l":""}">${L(s[0])}</span> <span class="ut">/${ET[s[5]]}</span><small>${s[1]}</small><small>típico ${L(s[3])} · ${s[4]} prod.</small></div>`:`<div class="mt" style="padding:0">—</div>`;
-  h+=`<div class="rw"><div class="nm">${x.n}<small>por ${ET[x.u]}</small></div>${cel(a,"p")}${cel(b,"c")}</div>`});
-$("lista").innerHTML=h;
-// ---- Calculadora UI
-$("cp").innerHTML=LISTA.map((x,i)=>`<option value="${i}">${x.n}</option>`).join("");
-function unidades(){const it=LISTA[+$("cp").value];$("cun").innerHTML=UN[it.u].map((u,i)=>`<option value="${i}">${u[0]}</option>`).join("");calc()}
-function calc(){
-  const it=LISTA[+$("cp").value],fac=UN[it.u][+$("cun").value][1];
-  const r=calcular(it,parseFloat($("cpr").value),parseFloat($("cca").value),fac);
-  if(!r){$("cres").innerHTML='<span class="mt">Escribe el precio y la cantidad.</span>';return}
-  let o=`<div class="big">${L(r.mer)} por ${r.unidad}</div>`;
-  r.tiendas.forEach(t=>{
-    if(t.otra){o+=`<div class="ln"><span>${t.n}<br><small class="mt" style="padding:0">${t.prod.slice(0,40)}</small></span><span class="mt" style="padding:0">solo ${L(t.up)} por ${t.otra}</span></div>`;return}
-    if(t.sin){o+=`<div class="ln"><span>${t.n}</span><span class="mt" style="padding:0">sin dato</span></div>`;return}
-    const barato=t.d<0,igual=Math.abs(t.d)<.005;
-    o+=`<div class="ln"><span>${t.n}<br><small class="mt" style="padding:0">${L(t.up)} · ${t.prod.slice(0,40)}</small></span>
-    <span class="${igual?"":barato?"w":"l"}"><b>${igual?"igual":(barato?"mercado −":"mercado +")+L(Math.abs(t.d))}</b></span></div>`});
-  $("cres").innerHTML=o}
-$("cp").onchange=unidades;["cpr","cca","cun"].forEach(i=>$(i).oninput=calc);unidades();
-// ---- Buscar
-D.forEach(x=>x.k=norm(x.n+" "+x.m)+" "+x.e);
-function box(t,s,w){if(!s)return`<div><small>${t}</small>—</div>`;
-  const u=s[2]?`<small>${L(s[2])} / ${ET[s[3]]}</small>`:"";
-  return`<div class="${w?"win":""}"><small>${t}</small><b>${L(s[0])}</b>${s[1]>s[0]?` <s>${L(s[1])}</s>`:""}${u}</div>`}
-function card(x){const d=x.p&&x.c?x.p[0]-x.c[0]:null;
-  return`<div class="cd"><img loading="lazy" referrerpolicy="no-referrer" src="${x.i}" onerror="this.style.visibility='hidden'">
-  <div style="flex:1"><div class="nm">${x.n}</div><div class="br">${x.m}</div>
-  <div class="pr">${box("Paiz",x.p,d!=null&&d<0)}${box("La Colonia",x.c,d!=null&&d>0)}</div></div></div>`}
-function go(){const ws=norm($("q").value.trim()).split(/\s+/).filter(Boolean);
-  if(!ws.length){$("out").innerHTML='<div class="mt">Escribe para buscar en todo el catálogo ('+D.length+' productos).</div>';return}
-  const r=D.filter(x=>ws.every(w=>x.k.includes(w))).sort((a,b)=>(!!(b.p&&b.c))-(!!(a.p&&a.c))||a.n.localeCompare(b.n));
-  $("out").innerHTML=r.slice(0,50).map(card).join("")||'<div class="mt">Sin resultados.</div>'}
-$("q").oninput=go;go();
-// ---- Pestañas
-document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
-  document.querySelectorAll(".tabs button,.pane").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on");$(b.dataset.t).classList.add("on")});
-if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
-</script></body></html>"""
+# 1) Un solo registro por código de barras (el más barato) en cada tienda
+def unicos(regs):
+    vistos, out = {}, []
+    for r in regs:  # ya vienen ordenados por precio ascendente
+        if r["ean"]:
+            if r["ean"] in vistos:
+                continue
+            vistos[r["ean"]] = r
+        out.append(r)
+    return out, vistos
 
+
+P, pe = unicos(P)
+C, ce = unicos(C)
+
+items, usados_p, usados_c = [], set(), set()
+for e in pe.keys() & ce.keys():
+    a, b = pe[e], ce[e]
+    items.append({"id": "e" + e, "m": a["marca"] or b["marca"], "x": "e", "p": lado(a), "c": lado(b)})
+    usados_p.add(a["id"])
+    usados_c.add(b["id"])
+n_ean = len(items)
+
+
+# 2) Coincidencia probable: misma marca, mismo tamaño (±2 %) y nombre muy parecido
+GEN_TOK = {"marca", "generico", "aplica", "na", "no"}
+# Si una palabra de esta lista está en un producto y no en el otro, NO son el mismo producto
+VARIANTES = {"organica", "organico", "light", "lite", "zero", "cero", "integral", "deslactosada", "descremada",
+             "semidescremada", "diet", "vegano", "vegana", "baby", "mini", "jumbo", "extra", "premium",
+             "picante", "dulce", "chocolate", "fresa", "vainilla", "natural", "original", "jalapeno",
+             "habanero", "suavizante", "trocitos", "bbq", "barbacoa"}
+
+
+def marca_compatible(a, b):
+    return bool(a) and bool(b) and not (a <= GEN_TOK or b <= GEN_TOK) and (a <= b or b <= a)
+
+
+def etapas(nombre):
+    """'3+' / '1+' (etapas de leche, fórmulas): deben ser iguales en ambos."""
+    return frozenset(re.findall(r"\b\d\+", norm(nombre)))
+
+
+def cubo(q):
+    return int(math.log(q) / 0.02)
+
+
+indice = {}
+for r in C:
+    if r["id"] not in usados_c and r["ul"] and r["qty"] and r["qty"] > 0 and r["core"]:
+        indice.setdefault((r["ul"], cubo(r["qty"])), []).append(r)
+
+cands = []
+for a in P:
+    if a["id"] in usados_p or not (a["ul"] and a["qty"] and a["qty"] > 0 and a["core"] and a["bt"]):
+        continue
+    k = cubo(a["qty"])
+    for kk in (k - 1, k, k + 1):
+        for b in indice.get((a["ul"], kk), []):
+            if abs(a["qty"] - b["qty"]) > 0.02 * max(a["qty"], b["qty"]):
+                continue
+            if not marca_compatible(a["bt"], b["bt"]):
+                continue
+            dif = a["core"] ^ b["core"]
+            if dif & VARIANTES or etapas(a["nombre"]) != etapas(b["nombre"]):
+                continue
+            inter = len(a["core"] & b["core"])
+            jac = inter / len(a["core"] | b["core"])
+            chico = a["core"] if len(a["core"]) <= len(b["core"]) else b["core"]
+            if jac >= 0.6 or (chico <= (a["core"] & b["core"]) and len(chico) >= 2 and len(dif) <= 1):
+                cands.append((jac, a, b))
+cands.sort(key=lambda x: -x[0])
+for jac, a, b in cands:
+    if a["id"] in usados_p or b["id"] in usados_c:
+        continue
+    usados_p.add(a["id"])
+    usados_c.add(b["id"])
+    items.append({"id": a["id"], "m": a["marca"] or b["marca"], "x": "f", "p": lado(a), "c": lado(b)})
+n_fuzzy = len(items) - n_ean
+
+# 3) Productos que solo están en una tienda
+for r in P:
+    if r["id"] not in usados_p:
+        items.append({"id": r["id"], "m": r["marca"], "x": "", "p": lado(r), "c": None})
+for r in C:
+    if r["id"] not in usados_c:
+        items.append({"id": r["id"], "m": r["marca"], "x": "", "p": None, "c": lado(r)})
+
+print(f"Productos: {len(items)} · mismos por código de barras: {n_ean} · coincidencias probables: {n_fuzzy}")
+
+# ───────────────────────── Página ─────────────────────────
 SW = """// Guarda la página para que abra sin señal; se actualiza sola cuando hay internet.
-const C = "precios-hn-v1";
+const C = "precios-hn-v2";
 self.addEventListener("install", e => { self.skipWaiting(); });
-self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
+self.addEventListener("activate", e => e.waitUntil(
+  caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
   if (e.request.method !== "GET" || u.origin !== location.origin) return;
@@ -354,15 +416,19 @@ self.addEventListener("fetch", e => {
 """
 MANIFEST = {"name": "Precios HN: Paiz vs La Colonia", "short_name": "Precios HN",
             "start_url": "./", "display": "standalone",
-            "background_color": "#1b1f24", "theme_color": "#1b1f24"}
+            "background_color": "#0f1317", "theme_color": "#0f1317"}
 
-out = (PLANTILLA
-       .replace("__LISTA__", json.dumps(lista, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/"))
-       .replace("__DATA__", json.dumps(items, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/"))
-       .replace("__FP__", fecha_p).replace("__FC__", fecha_c))
+
+def js(obj):
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+
+
+html = (PLANTILLA.read_text(encoding="utf-8")
+        .replace("__LISTA__", js(lista)).replace("__DATA__", js(items)).replace("__PFX__", js(PFX))
+        .replace("__FP__", fecha_p).replace("__FC__", fecha_c))
 SALIDA.mkdir(exist_ok=True)
-(SALIDA / "index.html").write_text(out, encoding="utf-8")
+(SALIDA / "index.html").write_text(html, encoding="utf-8")
 (SALIDA / "sw.js").write_text(SW, encoding="utf-8")
 (SALIDA / "manifest.webmanifest").write_text(json.dumps(MANIFEST, ensure_ascii=False), encoding="utf-8")
 (SALIDA / ".nojekyll").write_text("", encoding="utf-8")
-print(len(items), "productos ->", SALIDA / "index.html", f"({len(out)//1024} KB)")
+print("Listo ->", SALIDA / "index.html", f"({len(html)//1024} KB)")
