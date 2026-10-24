@@ -41,9 +41,9 @@ En 1–2 minutos GitHub Pages publica la versión nueva.
 
 `.github/workflows/actualizar-precios.yml` corre los scrapers lunes y jueves, valida que los CSV no vengan vacíos, regenera la página y publica. También se puede correr a mano en la pestaña **Actions → Actualizar precios → Run workflow**. Requiere en el repo: Settings → Actions → General → Workflow permissions → *Read and write*.
 
-## Nube (en preparación)
+## Nube (Supabase)
 
-`supabase/precios_hogar.sql` crea la tabla y las dos funciones para compartir listas e historial entre celulares (aún no conectado a la página).
+`supabase/precios_hogar.sql` (se corre una vez en el SQL Editor) crea la tabla `precios_datos` y las funciones `precios_leer` / `precios_guardar`. La página usa solo la llave *publishable* (pública) del proyecto. En la app: perfil (círculo de arriba) → **Compartir con mi familia** → crea un código de hogar; los demás lo escriben o abren el enlace. Cada perfil, lista e historial se sincronizan; si dos celulares cambian lo mismo a la vez, se mezclan.
 
 ## Estructura
 

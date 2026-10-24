@@ -281,6 +281,10 @@ a.p:active{transform:scale(.98)}
 .crow.done{opacity:.55}.crow.done h3{text-decoration:line-through}
 .prog{font-size:13.5px;margin:2px 4px 12px}.pbar2{height:8px;border-radius:99px;background:var(--sf2);margin-top:6px;overflow:hidden}
 .pbar2 i{display:block;height:100%;background:var(--ok);border-radius:99px;transition:width .4s}
+#perf{position:relative}
+#perf.sy-ok::after,#perf.sy-pend::after{content:"";position:absolute;right:-2px;bottom:-2px;width:12px;height:12px;border-radius:50%;border:2px solid var(--bg);background:var(--ok)}
+#perf.sy-pend::after{background:#e8a400}
+.codebox{margin:12px 0;padding:14px;border-radius:14px;background:var(--sf2);text-align:center;font:700 17px ui-monospace,Menlo,monospace;letter-spacing:.04em;word-break:break-all}
 .fav{color:var(--mu)}.fav.on{color:#e8a400}.fav.on svg{fill:currentColor}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(min-width:720px){body{font-size:16px}}
@@ -779,7 +783,7 @@ function cargarPerfil(){
   Object.keys(cart).forEach(k=>{if(!byId.has(k)){delete cart[k];delete DATA.chk[k]}});
   DATA.favs=DATA.favs.filter(k=>byId.has(k));
 }
-const persist=()=>store.set(PKEY(PR.act),DATA);
+const persist=()=>{store.set(PKEY(PR.act),DATA);if(typeof nubePush==="function")nubePush()};
 const mSave=persist;
 cargarPerfil();
 const PCOL=["#2a68e6","#e0560d","#0f7b57","#8b46d8","#c2301d","#0e8fa8"];
@@ -796,12 +800,13 @@ function perfilSheet(){
    <div class="mk" style="padding:12px 0 0"><label class="lab" for="pnew">Agregar perfil</label>
     <div class="pend" style="display:flex;gap:8px"><input class="in2" id="pnew" maxlength="24" placeholder="Nombre (ej: Mamá)" autocomplete="off"><button class="btn pri" id="padd" style="height:48px">Agregar</button></div></div>
    <div class="acts" style="flex-wrap:wrap"><button class="btn" id="pren">Renombrar «${esc(act.n)}»</button>${PR.lista.length>1?`<button class="btn" id="pdel" style="color:var(--bad)">Borrar este perfil</button>`:""}</div>
-   <h2 style="margin-left:0">Respaldo</h2><div class="muted small">Copia el respaldo del perfil activo para pasarlo a otro celular o guardarlo. Para restaurar, pega el texto abajo.</div>
+   <h2 style="margin-left:0">Familia</h2><div class="acts"><button class="btn pri" id="pnube">Compartir con mi familia</button></div><h2 style="margin-left:0">Respaldo</h2><div class="muted small">Copia el respaldo del perfil activo para pasarlo a otro celular o guardarlo. Para restaurar, pega el texto abajo.</div>
    <div class="acts"><button class="btn" id="pexp">Copiar respaldo</button></div>
    <textarea class="in2" id="pimp" rows="3" placeholder="Pega aquí un respaldo para restaurar" style="height:auto;padding:10px 12px;margin-top:8px;font-size:13px"></textarea>
    <div class="acts"><button class="btn" id="pimpb">Restaurar en «${esc(act.n)}»</button></div>`);
 }
 $("#perf").onclick=perfilSheet;
+$("#sb").addEventListener("click",e=>{if(e.target.closest("#pnube"))nubeSheet()});
 $("#sb").addEventListener("click",e=>{
   const pf=e.target.closest("[data-pf]");if(pf){cambiarPerfil(pf.dataset.pf);perfilSheet();toast("Perfil: "+PR.lista.find(p=>p.id===PR.act).n);return}
   if(e.target.closest("#padd")){const n=$("#pnew").value.trim().slice(0,24);if(!n){toast("Escribe un nombre");return}
@@ -809,6 +814,7 @@ $("#sb").addEventListener("click",e=>{
   if(e.target.closest("#pren")){const a=PR.lista.find(p=>p.id===PR.act),n=prompt("Nuevo nombre:",a.n);if(n&&n.trim()){a.n=n.trim().slice(0,24);store.set("phn_perfiles",PR);pintarAvatar();perfilSheet()}return}
   if(e.target.closest("#pdel")){const a=PR.lista.find(p=>p.id===PR.act);
     if(confirm("¿Borrar el perfil «"+a.n+"» con todo su historial? No se puede deshacer.")){
+      if(HOGAR){const ver=SYV[a.id]||{v:0};rpc("precios_guardar",{p_hogar:HOGAR,p_perfil:a.id,p_datos:{n:a.n,borrado:true},p_version:ver.v}).catch(()=>{})}
       try{localStorage.removeItem(PKEY(a.id))}catch(x){}PR.lista=PR.lista.filter(p=>p.id!==a.id);PR.act=PR.lista[0].id;store.set("phn_perfiles",PR);cambiarPerfil(PR.act);perfilSheet()}return}
   if(e.target.closest("#pexp")){const t=JSON.stringify({v:1,perfil:PR.lista.find(p=>p.id===PR.act).n,data:DATA});
     (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast("Respaldo copiado")).catch(()=>{$("#pimp").value=t;$("#pimp").select();toast("Cópialo del cuadro")});return}
@@ -817,6 +823,123 @@ $("#sb").addEventListener("click",e=>{
     if(!confirm("Esto reemplaza lo que hay en este perfil. ¿Seguir?"))return;
     DATA=Object.assign(VACIO(),o.data);persist();cargarPerfil();editIdx=-1;mForm();mPintar();pintarCanasta();badge();cerrar();toast("Respaldo restaurado")}
 });
+
+/* ───── NUBE: datos compartidos del hogar (Supabase) ───── */
+const SB_URL="https://apvrcuejwrkadtvnkhqc.supabase.co",SB_KEY="sb_publishable_PvnpABAoEgZpm9EYLcO4PA_Hx9kU0zi";
+let HOGAR=store.get("phn_hogar",""),SYV=store.get("phn_sync",{}),SY={e:HOGAR?"pend":"off",t:0},syT=null,syBusy=false,syQ=false;
+const hashS=s=>{let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return String(h)};
+const rpc=async(fn,args)=>{const r=await fetch(SB_URL+"/rest/v1/rpc/"+fn,{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify(args)});
+  if(!r.ok)throw new Error("HTTP "+r.status);return r.json()};
+const nuevoCodigo=()=>{const A="abcdefghjkmnpqrstuvwxyz23456789",b=new Uint8Array(20);
+  (window.crypto||window.msCrypto).getRandomValues(b);return[...b].map(x=>A[x%A.length]).join("")};
+const fmtCod=c=>c.replace(/(.{4})(?=.)/g,"$1-");
+const limpiaCod=c=>String(c||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+const vacioD=d=>!d||(!(d.hist||[]).length&&!(d.favs||[]).length&&!(d.listas||[]).length&&!Object.keys(d.cart||{}).length&&!(d.libres||[]).length&&!((d.mk||{}).items||[]).length);
+const leerP=id=>Object.assign(VACIO(),store.get(PKEY(id),{}));
+function setEstado(e){SY.e=e;SY.t=Date.now();const b=$("#perf");b.classList.toggle("sy-ok",e==="ok");b.classList.toggle("sy-pend",e==="pend"||e==="err");
+  const l=$("#sy-txt");if(l)l.textContent=txtEstado()}
+const txtEstado=()=>!HOGAR?"No compartido":SY.e==="ok"?"Sincronizado":SY.e==="err"?"Sin conexión: se enviará cuando haya internet":"Enviando…";
+/* Mezcla cuando dos celulares cambiaron lo mismo a la vez */
+function mezclar(L,R){
+  const o=Object.assign(VACIO(),L),porId=(a,b)=>{const m=new Map();(b||[]).concat(a||[]).forEach(x=>m.set(x.id,x));return[...m.values()]};
+  o.hist=porId(L.hist,R.hist);o.listas=porId(L.listas,R.listas);o.libres=porId(L.libres,R.libres);
+  o.favs=[...new Set((L.favs||[]).concat(R.favs||[]))];
+  o.cart=Object.assign({},R.cart,L.cart);o.chk=Object.assign({},R.chk,L.chk);
+  if(!(L.mk&&L.mk.items&&L.mk.items.length)&&R.mk)o.mk=R.mk;
+  return o;
+}
+function repintar(){cargarPerfil();{const s=SYV[PR.act];if(s&&!s.sucio){s.h=hashS(JSON.stringify(DATA));store.set("phn_sync",SYV)}}editIdx=-1;pintarAvatar();mForm();mPintar();pintarCanasta();pintarBuscar();pintarFavs();badge()}
+async function nubePull(){
+  if(!HOGAR)return;
+  const filas=await rpc("precios_leer",{p_hogar:HOGAR});let cambio=false;
+  for(const f of filas){
+    const id=f.perfil,rem=f.datos||{},loc=PR.lista.find(p=>p.id===id);
+    if(rem.borrado){if(loc&&PR.lista.length>1){PR.lista=PR.lista.filter(p=>p.id!==id);try{localStorage.removeItem(PKEY(id))}catch(e){}delete SYV[id];if(PR.act===id)PR.act=PR.lista[0].id;cambio=true}continue}
+    if(!rem.d)continue;
+    const sv=SYV[id]||{v:0,h:""};
+    if(!loc){PR.lista.push({id,n:rem.n||"Perfil"});store.set(PKEY(id),rem.d);SYV[id]={v:f.version,h:hashS(JSON.stringify(rem.d))};cambio=true;continue}
+    if(f.version===sv.v)continue;
+    const cur=id===PR.act?DATA:leerP(id),sinCambios=hashS(JSON.stringify(cur))===sv.h;
+    const nuevo=sinCambios?rem.d:mezclar(cur,rem.d);
+    if(loc.n!==rem.n&&rem.n)loc.n=rem.n;
+    store.set(PKEY(id),nuevo);SYV[id]={v:f.version,h:sinCambios?hashS(JSON.stringify(nuevo)):sv.h};cambio=true;
+    if(!sinCambios)SYV[id].sucio=true;
+  }
+  if(cambio){store.set("phn_perfiles",PR);store.set("phn_sync",SYV);repintar()}
+}
+async function nubePushUno(id,borrado){
+  const d=id===PR.act?DATA:leerP(id),p=PR.lista.find(x=>x.id===id),sv=SYV[id]||{v:0,h:""};
+  const blob=borrado?{n:p?p.n:"",borrado:true}:{n:p.n,d};
+  const r=await rpc("precios_guardar",{p_hogar:HOGAR,p_perfil:id,p_datos:blob,p_version:sv.v});
+  if(String(r).startsWith("ok:")){SYV[id]={v:+r.slice(3),h:hashS(JSON.stringify(d))};store.set("phn_sync",SYV);return true}
+  if(String(r).startsWith("conflicto")){await nubePull();return false}
+  throw new Error(String(r));
+}
+async function nubeSync(todos){
+  if(!HOGAR||!SB_KEY)return;
+  if(syBusy){syQ=true;return}
+  syBusy=true;
+  try{
+    await nubePull();
+    for(let k=0;k<3;k++){
+      const ids=todos?PR.lista.map(p=>p.id):[PR.act];let ok=true;
+      for(const id of ids){
+        const sv=SYV[id]||{v:0,h:""},d=id===PR.act?DATA:leerP(id);
+        if(todos||hashS(JSON.stringify(d))!==sv.h||sv.sucio){
+          if(!(await nubePushUno(id)))ok=false;else if(SYV[id])delete SYV[id].sucio}
+      }
+      if(ok)break;
+    }
+    store.set("phn_sync",SYV);setEstado("ok");
+  }catch(e){setEstado("err")}
+  syBusy=false;if(syQ){syQ=false;nubePush()}
+}
+function nubePush(){if(!HOGAR)return;setEstado("pend");clearTimeout(syT);syT=setTimeout(()=>nubeSync(false),1500)}
+function idsUnicos(){ // el primer perfil de cada celular se llama p1: darle un id propio antes de compartir
+  PR.lista.forEach(p=>{if(p.id==="p1"){const n="p"+Date.now().toString(36)+Math.random().toString(36).slice(2,4),d=store.get(PKEY("p1"),VACIO());
+    store.set(PKEY(n),d);try{localStorage.removeItem(PKEY("p1"))}catch(e){}if(PR.act==="p1")PR.act=n;p.id=n}});
+  store.set("phn_perfiles",PR);cargarPerfil();
+}
+async function unirseHogar(cod,nuevo){
+  cod=limpiaCod(cod);if(cod.length<16){toast("Código no válido");return false}
+  if(PR.lista.length===1&&vacioD(DATA)&&!nuevo){ // perfil vacío: se descarta para no duplicar
+    const viejo=PR.lista[0];PR.lista=[];try{localStorage.removeItem(PKEY(viejo.id))}catch(e){}
+    HOGAR=cod;store.set("phn_hogar",HOGAR);SYV={};
+    try{await nubePull()}catch(e){}
+    if(!PR.lista.length){const id="p"+Date.now().toString(36);PR.lista.push({id,n:viejo.n});store.set(PKEY(id),VACIO())}
+    PR.act=PR.lista[0].id;store.set("phn_perfiles",PR);cargarPerfil();repintar();setEstado("ok");nubeSync(true);return true}
+  idsUnicos();HOGAR=cod;store.set("phn_hogar",HOGAR);SYV={};setEstado("pend");await nubeSync(true);repintar();return true;
+}
+function nubeSheet(){
+  const l=location.origin+location.pathname+"#h="+HOGAR;
+  hoja(`<h3 class="t">Compartir con mi familia</h3>
+   ${HOGAR?`<div class="muted small">Todos los que usen este código ven los mismos perfiles, listas e historial en su celular. Estado: <b id="sy-txt">${txtEstado()}</b></div>
+    <div class="codebox">${esc(fmtCod(HOGAR))}</div>
+    <div class="acts" style="flex-wrap:wrap"><button class="btn pri" id="nshare">Enviar enlace por WhatsApp</button><button class="btn" id="ncopy">Copiar código</button><button class="btn" id="nsync">Sincronizar ahora</button></div>
+    <div class="muted small" style="margin-top:10px">Quien tenga el código puede ver y cambiar estos datos. No lo publiques.</div>
+    <div class="acts"><button class="btn" id="nleave" style="color:var(--bad)">Dejar de compartir en este celular</button></div>`
+   :`<div class="muted small">Activa esto para que tú y tu familia vean la misma lista de compras, favoritos e historial desde cada celular. No hace falta crear cuentas.</div>
+    <div class="acts"><button class="btn pri" id="non">Activar y crear código</button></div>
+    <h2 style="margin-left:0">¿Ya tienen un código?</h2>
+    <div class="pend" style="display:flex;gap:8px"><input class="in2" id="ncod" placeholder="xxxx-xxxx-xxxx-xxxx-xxxx" autocomplete="off" autocapitalize="off"><button class="btn pri" id="njoin" style="height:48px">Unirme</button></div>`}`);
+}
+$("#sb").addEventListener("click",async e=>{
+  if(e.target.closest("#non")){idsUnicos();HOGAR=nuevoCodigo();store.set("phn_hogar",HOGAR);SYV={};setEstado("pend");nubeSheet();await nubeSync(true);nubeSheet();return}
+  if(e.target.closest("#njoin")){const ok=await unirseHogar($("#ncod").value);if(ok)nubeSheet();return}
+  if(e.target.closest("#nsync")){setEstado("pend");await nubeSync(true);toast(SY.e==="ok"?"Sincronizado":"No pude conectar");return}
+  if(e.target.closest("#ncopy")){try{await navigator.clipboard.writeText(fmtCod(HOGAR));toast("Código copiado")}catch(x){toast(fmtCod(HOGAR))}return}
+  if(e.target.closest("#nshare")){const t="Entra a nuestros precios y comparte la lista con este enlace: "+location.origin+location.pathname+"#h="+HOGAR;
+    if(navigator.share)navigator.share({text:t}).catch(()=>{});else window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank","noopener");return}
+  if(e.target.closest("#nleave")&&confirm("Este celular dejará de sincronizar. Tus datos se quedan aquí. ¿Seguir?")){HOGAR="";store.set("phn_hogar","");SYV={};store.set("phn_sync",SYV);setEstado("off");nubeSheet();toast("Dejaste de compartir")}
+});
+window.addEventListener("online",()=>{if(HOGAR)nubeSync(false)});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&HOGAR)nubeSync(false)});
+async function nubeArranque(){
+  const m=/[#&]h=([a-z0-9-]+)/i.exec(location.hash||"");
+  if(m){const cod=limpiaCod(m[1]);history.replaceState(null,"",location.pathname+location.search);
+    if(cod&&cod!==HOGAR&&confirm("¿Unirte al hogar compartido de este enlace? Verás su lista e historial en este celular.")){await unirseHogar(cod);toast("Te uniste al hogar compartido");return}}
+  if(HOGAR)nubeSync(false);
+}
 
 /* ───── MERCADO: lista, gasto e historial ───── */
 const MU={lb:{base:"lb",f:1},kg:{base:"lb",f:2.20462},g:{base:"lb",f:1/453.592},oz:{base:"lb",f:1/16},
@@ -1077,7 +1200,7 @@ $("#sb").addEventListener("click",e=>{
 });
 
 /* ───── arranque ───── */
-hero();pintarLista();$("#cp").value=LISTA[ORD[0]].n;pintarUnidades();calc();pintarBuscar();badge();pintarAvatar();mForm();pintarFavs();
+hero();pintarLista();$("#cp").value=LISTA[ORD[0]].n;pintarUnidades();calc();pintarBuscar();badge();pintarAvatar();mForm();pintarFavs();nubeArranque();
 const v0=store.get("phn_vista","lista");ver(["lista","calc","buscar","mercado","canasta"].includes(v0)?v0:"lista");
 if("serviceWorker" in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
