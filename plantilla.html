@@ -150,7 +150,7 @@ a.p:active{transform:scale(.98)}
 .step button{width:42px;height:42px;border-radius:12px;background:var(--sf);border:1px solid var(--bd);display:grid;place-items:center}
 .step button:active{transform:scale(.92)}
 .step input{width:74px;text-align:center;height:56px;border-radius:15px;border:1px solid var(--bd);background:var(--sf2);font-size:22px;font-weight:800;outline:none}
-.grid2{display:grid;grid-template-columns:1.2fr 1fr;gap:12px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:12px}
 .res{padding:18px;margin-top:14px;display:none}
 .res.on{display:block;animation:in .3s ease both}
 .res .big{font-size:38px;font-weight:850;letter-spacing:-.03em;line-height:1}
@@ -272,7 +272,9 @@ a.p:active{transform:scale(.98)}
 .hb{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px;min-width:0}
 .hb i{display:block;width:100%;max-width:34px;border-radius:8px 8px 3px 3px;background:var(--pz);transition:height .6s}
 .hb .hv{font-size:10.5px;font-weight:700;color:var(--mu)}.hb .hd{font-size:10px;color:var(--mu);white-space:nowrap}
-.step input{flex:1;min-width:0;width:auto}.step{min-width:0}
+.cal>*,.grid2>*{min-width:0}
+.step{min-width:0}.step input{flex:1 1 0;min-width:0;width:100%}
+.num{min-width:0}.num input{min-width:0}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(min-width:720px){body{font-size:16px}}
 </style>
@@ -880,14 +882,14 @@ function hPintar(){
   const ult=L.slice(-8),mx=Math.max(...ult.map(totalDe),1);
   let h=`<div class="card" style="padding:14px"><div class="lab">Gasto por compra</div><div class="hbars">${ult.map(c=>`<div class="hb"><span class="hv">${Math.round(totalDe(c))}</span><i style="height:${Math.max(6,totalDe(c)/mx*100)}%"></i><span class="hd">${fmtF(c.fecha).slice(0,-5)}</span></div>`).join("")}</div></div><h2>Compras guardadas</h2>`;
   h+=L.slice().reverse().map(c=>{const i=L.indexOf(c),v=cambioVs(c,L,i);
-    return`<button class="card mrow hrow" data-h="${c.id}"><div class="h"><b>${fmtF(c.fecha)}${c.nota?` · ${esc(c.nota)}`:""}</b><span class="pr">${money(totalDe(c))}</span></div>
+    return`<button class="card mrow hrow" data-h="${c.id}"><div class="h"><b>${fmtF(c.fecha)}${c.tienda?` · ${esc(c.tienda)}`:""}${c.nota?` · ${esc(c.nota)}`:""}</b><span class="pr">${money(totalDe(c))}</span></div>
      <div class="s">${c.items.length} producto${c.items.length===1?"":"s"}</div>
      ${v?`<div class="bx"><span class="badge ${v.pc<-.5?"ok":v.pc>.5?"bad":"eq"}">${v.pc>.5?"↑ Precios "+v.pc.toFixed(0)+"% más altos":v.pc<-.5?"↓ Precios "+Math.abs(v.pc).toFixed(0)+"% más bajos":"Precios iguales"} que antes (${v.n} producto${v.n>1?"s":""})</span></div>`:""}</button>`}).join("");
   $("#m-his").innerHTML=h;
 }
 function detalleCompra(id){
   const L=histOrd(),i=L.findIndex(x=>x.id===id),c=L[i];if(!c)return;
-  let h=`<h3 class="t">${fmtF(c.fecha)}${c.nota?" · "+esc(c.nota):""}</h3><div class="big" style="font-size:30px;font-weight:850">${money(totalDe(c))}</div>`;
+  let h=`<h3 class="t">${fmtF(c.fecha)}${c.tienda?" · "+esc(c.tienda):""}${c.nota?" · "+esc(c.nota):""}</h3><div class="big" style="font-size:30px;font-weight:850">${money(totalDe(c))}</div>`;
   h+=c.items.map(e=>{const a=e.p!=null?anterior(e,L,i):null;let b="";
     if(a){const d=upBase(e)-a.up,pc=Math.abs(d)/a.up*100;b=Math.abs(d)<.005?`<span class="badge eq">Igual</span>`:`<span class="badge ${d<0?"ok":"bad"}">${d<0?"↓":"↑"} ${pc.toFixed(0)}% vs ${fmtF(a.fecha)}</span>`}
     return`<div class="sline"><div class="bd"><h4>${esc(e.n)}</h4><div class="muted small">${e.q} ${e.u}${e.p!=null?" · "+money(e.p/e.q)+" por "+e.u:""}</div>${b}</div><div class="px">${e.p!=null?money(e.p):"—"}</div></div>`}).join("");
@@ -965,16 +967,40 @@ function pintarCanasta(){
    <div class="p co ${nb&&dif>0?"win":""}"><span class="st">La Colonia</span><span class="v">${money(tc)}</span></div></div>
    ${nb?`<div class="verdict ${dif===0?"eq":"ok"}" style="margin-top:12px">${dif===0?"Los "+nb+" productos que están en ambas cuestan lo mismo.":`En los ${nb} productos que están en las dos tiendas, ${ST[gana].n} te ahorra ${money(Math.abs(dif))}.`}</div>`:""}
    ${solo?`<div class="note">${solo} producto${solo>1?"s":""} solo está${solo>1?"n":""} en una tienda, por eso los totales no son del todo comparables. Usa «Similares» en Buscar para encontrar equivalentes.</div>`:""}
-   <div class="acts" style="margin-top:12px"><button class="btn" id="vaciar">Vaciar canasta</button></div></div>`;
+   <div class="acts" style="margin-top:12px"><button class="btn pri" id="cguardar">Guardar compra</button><button class="btn" id="vaciar">Vaciar canasta</button></div></div>`;
   $("#cart").innerHTML=h;
 }
 $("#cart").onclick=e=>{
   if(e.target.closest("#irb")){ver("buscar");$("#q").focus();return}
+  if(e.target.closest("#cguardar")){guardarCanasta();return}
   if(e.target.closest("#vaciar")){Object.keys(cart).forEach(k=>delete cart[k]);guardar();pintarCanasta();toast("Canasta vacía");return}
   const b=e.target.closest("[data-q]");if(!b)return;
   const id=b.dataset.q,n=(cart[id]||0)+(+b.dataset.d);
   if(n<=0)delete cart[id];else cart[id]=n;guardar();pintarCanasta();
 };
+
+/* Guardar la canasta del súper en el historial */
+function guardarCanasta(){
+  hoja(`<h3 class="t">Guardar compra del súper</h3><div class="muted small">Se guarda en tu historial de «${esc(PR.lista.find(p=>p.id===PR.act).n)}» con el precio de cada producto.</div>
+   <div class="mk" style="padding:12px 0 0"><div><label class="lab" for="cgt">¿Dónde compraste?</label>
+   <select class="in2" id="cgt"><option value="m">Cada producto donde es más barato</option><option value="p">Todo en Paiz</option><option value="c">Todo en La Colonia</option></select></div>
+   <div class="r2"><div><label class="lab" for="cgf">Fecha</label><input class="in2" id="cgf" type="date" value="${hoy()}"></div>
+   <div><label class="lab" for="cgn">Nota (opcional)</label><input class="in2" id="cgn" maxlength="40" placeholder="Ej: quincena"></div></div>
+   <button class="btn pri" id="cgok">Guardar y vaciar canasta</button></div>`);
+}
+$("#sb").addEventListener("click",e=>{
+  if(!e.target.closest("#cgok"))return;
+  const modo=$("#cgt").value,its=[];let omit=0;
+  Object.keys(cart).forEach(id=>{const x=byId.get(id),q=cart[id];if(!x)return;
+    let t;if(modo==="m"){t=x.p&&x.c?(x.p[0]<=x.c[0]?"p":"c"):x.p?"p":"c"}else t=modo;
+    if(!x[t]){omit++;return}
+    its.push({n:x.nm,q,u:"unidad",p:Math.round(x[t][0]*q*100)/100,t:ST[t].n})});
+  if(!its.length){toast("Nada que guardar con esa tienda");return}
+  const nombre={m:"Paiz + La Colonia",p:"Paiz",c:"La Colonia"}[modo];
+  if(omit&&!confirm(omit+" producto"+(omit>1?"s":"")+" no está"+(omit>1?"n":"")+" en esa tienda y no se guarda"+(omit>1?"n":"")+". ¿Seguir?"))return;
+  HIST.push({id:"c"+Date.now().toString(36),ts:Date.now(),fecha:$("#cgf").value||hoy(),nota:$("#cgn").value.trim(),tienda:nombre,items:its});
+  Object.keys(cart).forEach(k=>delete cart[k]);guardar();cerrar();pintarCanasta();mPintar();toast("Compra guardada en tu historial");
+});
 
 /* ───── arranque ───── */
 hero();pintarLista();$("#cp").value=LISTA[ORD[0]].n;pintarUnidades();calc();pintarBuscar();badge();pintarAvatar();mForm();
