@@ -288,6 +288,17 @@ print("Sin resultado:", [x["n"] for x in lista if not x["p"] and not x["c"]])
 
 
 # ───────────────────────── Relación entre tiendas ─────────────────────────
+def bc(*rs):
+    """Códigos de barras (sin ceros a la izquierda) de un producto, para el escáner."""
+    out = []
+    for r in rs:
+        e = r["ean"]
+        e = str(e).lstrip("0") if e is not None and str(e) not in ("nan", "None", "") else ""
+        if len(e) >= 8 and e not in out:
+            out.append(e)
+    return " ".join(out)
+
+
 def registro(r, tienda):
     return {"t": tienda, "id": f'{tienda}{r["sku"]}', "ean": r["ean"], "nombre": r["producto"],
             "marca": r["marca"], "precio": float(r["precio_actual"]),
@@ -327,7 +338,7 @@ C, ce = unicos(C)
 items, usados_p, usados_c = [], set(), set()
 for e in pe.keys() & ce.keys():
     a, b = pe[e], ce[e]
-    items.append({"id": "e" + e, "m": a["marca"] or b["marca"], "x": "e", "p": lado(a), "c": lado(b)})
+    items.append({"id": "e" + e, "m": a["marca"] or b["marca"], "x": "e", "b": bc(a, b), "p": lado(a), "c": lado(b)})
     usados_p.add(a["id"])
     usados_c.add(b["id"])
 n_ean = len(items)
@@ -385,16 +396,16 @@ for jac, a, b in cands:
         continue
     usados_p.add(a["id"])
     usados_c.add(b["id"])
-    items.append({"id": a["id"], "m": a["marca"] or b["marca"], "x": "f", "p": lado(a), "c": lado(b)})
+    items.append({"id": a["id"], "m": a["marca"] or b["marca"], "x": "f", "b": bc(a, b), "p": lado(a), "c": lado(b)})
 n_fuzzy = len(items) - n_ean
 
 # 3) Productos que solo están en una tienda
 for r in P:
     if r["id"] not in usados_p:
-        items.append({"id": r["id"], "m": r["marca"], "x": "", "p": lado(r), "c": None})
+        items.append({"id": r["id"], "m": r["marca"], "x": "", "b": bc(r), "p": lado(r), "c": None})
 for r in C:
     if r["id"] not in usados_c:
-        items.append({"id": r["id"], "m": r["marca"], "x": "", "p": None, "c": lado(r)})
+        items.append({"id": r["id"], "m": r["marca"], "x": "", "b": bc(r), "p": None, "c": lado(r)})
 
 print(f"Productos: {len(items)} · mismos por código de barras: {n_ean} · coincidencias probables: {n_fuzzy}")
 

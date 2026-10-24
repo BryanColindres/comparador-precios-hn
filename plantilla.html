@@ -213,6 +213,27 @@ a.p:active{transform:scale(.98)}
   background:var(--ac);color:var(--acx);padding:11px 18px;border-radius:99px;font-weight:650;font-size:14px;opacity:0;
   pointer-events:none;transition:all .28s;z-index:60;white-space:nowrap;box-shadow:var(--sh)}
 #toast.on{opacity:1;transform:translate(-50%,0)}
+
+.field.sc input{padding-right:96px}
+.field .scan{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--ac);color:var(--acx)}
+.field .scan svg{position:static;transform:none;color:inherit}
+.field.has .x{right:50px}
+.codechip{display:flex;align-items:center;gap:8px;margin:12px 0 0;padding:10px 12px;border-radius:14px;background:var(--pzs);color:var(--pz);font-weight:650;font-size:13.5px}
+.codechip button{margin-left:auto;color:inherit;font-weight:800}
+#cam{position:fixed;inset:0;z-index:70;background:#000;display:none;flex-direction:column}
+#cam.on{display:flex}
+#cam video{flex:1;min-height:0;width:100%;object-fit:cover}
+.cam-top{position:absolute;top:0;left:0;right:0;padding:calc(12px + env(safe-area-inset-top)) 14px 12px;display:flex;justify-content:space-between;align-items:center;color:#fff;background:linear-gradient(#000a,transparent);z-index:2}
+.cam-top button{width:42px;height:42px;border-radius:50%;background:#ffffff26;color:#fff;display:grid;place-items:center}
+.frame{position:absolute;left:50%;top:42%;width:78%;max-width:340px;height:150px;transform:translate(-50%,-50%);border-radius:18px;
+  box-shadow:0 0 0 100vmax rgba(0,0,0,.5);border:2px solid #fff;z-index:1;pointer-events:none}
+.frame::after{content:"";position:absolute;left:8px;right:8px;top:50%;height:2px;background:#ff4d4d;box-shadow:0 0 10px #ff4d4d;animation:sc 1.6s ease-in-out infinite alternate}
+@keyframes sc{from{top:12%}to{top:88%}}
+.cam-bot{background:#0d1117;color:#fff;padding:14px 14px calc(16px + env(safe-area-inset-bottom));z-index:2}
+.cam-bot p{margin:0 0 10px;text-align:center;font-size:13px;color:#cbd3df}
+.cam-bot form{display:flex;gap:8px}
+.cam-bot input{flex:1;min-width:0;height:46px;border-radius:12px;border:1px solid #344055;background:#161b22;color:#fff;padding:0 14px;font-size:16px}
+.cam-bot button{height:46px;padding:0 18px;border-radius:12px;background:#fff;color:#000;font-weight:700}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(min-width:720px){body{font-size:16px}}
 </style>
@@ -259,7 +280,9 @@ a.p:active{transform:scale(.98)}
   <section class="view" id="v-buscar" aria-label="Buscar">
     <div class="field" id="qf"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="q" type="search" placeholder="Buscar: huevo, leche, aceite…" autocomplete="off" aria-label="Buscar productos">
-      <button class="x" id="qx" aria-label="Borrar"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <button class="x" id="qx" aria-label="Borrar"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <button class="scan" id="scan" aria-label="Escanear código de barras"><svg viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 8v8M11 8v8M15 8v8M18 8v8"/></svg></button></div>
+    <div id="codechip"></div>
     <div class="chips" id="fchips"></div>
     <div class="tools"><select id="ord" aria-label="Ordenar"><option value="rel">Más relevantes</option>
       <option value="precio">Precio: menor a mayor</option><option value="unit">Precio por unidad</option>
@@ -283,6 +306,11 @@ a.p:active{transform:scale(.98)}
 
 <div id="scrim"></div>
 <div id="sheet" role="dialog" aria-modal="true" aria-label="Detalle"><div class="grab"></div><div id="sb"></div></div>
+<div id="cam" role="dialog" aria-label="Escáner"><div class="cam-top"><b>Escanear código de barras</b>
+  <button id="camx" aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+  <video id="vid" playsinline muted></video><div class="frame"></div>
+  <div class="cam-bot"><p id="camp">Apunta al código de barras del producto</p>
+  <form id="manual"><input id="mc" inputmode="numeric" pattern="[0-9]*" placeholder="o escribe el número del código" aria-label="Número del código"><button>Buscar</button></form></div></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -486,11 +514,11 @@ $("#cm").onclick=()=>{const v=parseFloat($("#cca").value)||1;$("#cca").value=Mat
 $("#cmas").onclick=()=>{const v=parseFloat($("#cca").value)||0;$("#cca").value=(v<1?v*2||1:v+1).toString();calc()};
 
 /* ───── BUSCAR ───── */
-const B={q:"",f:"todas",o:"rel",n:30};
+const B={q:"",f:"todas",o:"rel",n:30,code:""};
 const SUG=["huevo","leche","pollo","arroz","aceite","café","azúcar","frijol","queso","pan","jabón","detergente"];
 function buscar(){
   const ts=tokens(B.q);
-  const base=ts.length?D.filter(x=>ts.every(t=>matchTok(x,t))):[];
+  const base=B.code?D.filter(x=>x.b&&(" "+x.b+" ").includes(" "+B.code+" ")):ts.length?D.filter(x=>ts.every(t=>matchTok(x,t))):[];
   const cnt={todas:base.length,p:base.filter(x=>x.p).length,c:base.filter(x=>x.c).length,ambas:base.filter(x=>x.p&&x.c).length};
   let r=base.filter(x=>B.f==="todas"||(B.f==="p"&&x.p)||(B.f==="c"&&x.c)||(B.f==="ambas"&&x.p&&x.c));
   const pr=x=>B.f==="c"?x.c[0]:B.f==="p"?x.p[0]:Math.min(x.p?x.p[0]:1e9,x.c?x.c[0]:1e9);
@@ -532,7 +560,8 @@ function tarjeta(x){
 }
 function pintarBuscar(){
   $("#qf").classList.toggle("has",!!$("#q").value);
-  if(!tokens(B.q).length){
+  $("#codechip").innerHTML=B.code?`<div class="codechip">Código ${esc(B.code)}<button id="cc" aria-label="Quitar código">Quitar ✕</button></div>`:"";
+  if(!B.code&&!tokens(B.q).length){
     $("#fchips").innerHTML="";$("#cnt").textContent="";
     $("#out").innerHTML=`<div class="empty"><b>¿Qué quieres comparar?</b>Escribe el nombre de un producto. Funciona igual en singular o plural (huevo / huevos).
       <div class="sug">${SUG.map(s=>`<button class="chip" data-s="${esc(s)}">${esc(s)}</button>`).join("")}</div></div>`;return}
@@ -540,15 +569,17 @@ function pintarBuscar(){
   const F=[["todas","Todas",""],["p","Paiz","pz"],["c","La Colonia","co"],["ambas","En ambas",""]];
   $("#fchips").innerHTML=F.map(([k,n,c])=>`<button class="chip ${c} ${B.f===k?"on":""}" data-f="${k}">${n}<b>${cnt[k]}</b></button>`).join("");
   $("#cnt").textContent=r.length+(r.length===1?" resultado":" resultados");
+  if(!r.length&&B.code){$("#out").innerHTML=`<div class="empty"><b>Ese código no está en el catálogo</b>Puede ser un producto que ninguna de las dos tiendas vende o que lo tiene con otro código. Búscalo por nombre.</div>`;return}
   if(!r.length){$("#out").innerHTML=`<div class="empty"><b>Sin resultados</b>${B.f!=="todas"?"Prueba con «Todas» o ":"Prueba "}con otra palabra más corta.</div>`;return}
   $("#out").innerHTML=r.slice(0,B.n).map(tarjeta).join("")+(r.length>B.n?`<button class="more" id="mas">Ver más (${r.length-B.n})</button>`:"");
 }
 let deb;
-$("#q").oninput=()=>{clearTimeout(deb);deb=setTimeout(()=>{B.q=$("#q").value;B.n=30;pintarBuscar()},110)};
-$("#qx").onclick=()=>{$("#q").value="";B.q="";pintarBuscar();$("#q").focus()};
+$("#q").oninput=()=>{B.code="";clearTimeout(deb);deb=setTimeout(()=>{B.q=$("#q").value;B.n=30;pintarBuscar()},110)};
+$("#qx").onclick=()=>{$("#q").value="";B.q="";B.code="";pintarBuscar();$("#q").focus()};
 $("#ord").onchange=()=>{B.o=$("#ord").value;B.n=30;pintarBuscar()};
 $("#fchips").onclick=e=>{const b=e.target.closest("[data-f]");if(!b)return;B.f=b.dataset.f;B.n=30;pintarBuscar()};
-function irBuscar(q){ver("buscar");$("#q").value=q;B.q=q;B.f="todas";B.n=30;pintarBuscar()}
+function irBuscar(q){B.code="";ver("buscar");$("#q").value=q;B.q=q;B.f="todas";B.n=30;pintarBuscar()}
+$("#codechip").onclick=e=>{if(e.target.closest("#cc")){B.code="";$("#q").value="";B.q="";pintarBuscar()}};
 $("#out").onclick=e=>{
   const s=e.target.closest("[data-s]");if(s){irBuscar(s.dataset.s);return}
   if(e.target.closest("#mas")){B.n+=30;pintarBuscar();return}
@@ -584,6 +615,43 @@ function similares(x){
   });
   hoja(h);
 }
+
+/* ───── ESCÁNER ───── */
+const normCode=c=>String(c||"").replace(/\D/g,"").replace(/^0+/,"");
+function porCodigo(raw){
+  const c=normCode(raw);if(c.length<8){toast("Código no válido");return false}
+  cerrarCam();ver("buscar");B.code=c;B.q="";B.f="todas";B.n=30;$("#q").value="";pintarBuscar();
+  const n=D.filter(x=>x.b&&(" "+x.b+" ").includes(" "+c+" ")).length;
+  toast(n?"Producto encontrado":"Código no encontrado");return true;
+}
+let stream=null,scanning=false,zx=null;
+function cerrarCam(){scanning=false;$("#cam").classList.remove("on");
+  if(zx){try{zx.reset()}catch(e){}zx=null}
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$("#vid").srcObject=null}
+function cargarZX(){return new Promise((ok,no)=>{if(window.ZXing)return ok();const s=document.createElement("script");
+  s.src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";s.onload=ok;s.onerror=no;document.head.appendChild(s)})}
+async function abrirCam(){
+  $("#cam").classList.add("on");$("#camp").textContent="Abriendo cámara…";
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$("#camp").textContent="Este navegador no permite la cámara aquí. Escribe el número del código.";return}
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}},audio:false})}
+  catch(e){$("#camp").textContent="No hay permiso para la cámara. Puedes escribir el número del código.";return}
+  const v=$("#vid");v.srcObject=stream;try{await v.play()}catch(e){}
+  $("#camp").textContent="Apunta al código de barras del producto";scanning=true;
+  if("BarcodeDetector" in window){
+    let det;try{det=new BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e"]})}catch(e){det=null}
+    if(det){const loop=async()=>{if(!scanning)return;
+      try{const r=await det.detect(v);if(r.length&&porCodigo(r[0].rawValue))return}catch(e){}
+      setTimeout(loop,200)};loop();return}
+  }
+  try{await cargarZX();const Z=window.ZXing,h=new Map();
+    h.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E]);
+    zx=new Z.BrowserMultiFormatReader(h);
+    zx.decodeFromStream(stream,v,(res)=>{if(res&&scanning)porCodigo(res.getText())});
+  }catch(e){$("#camp").textContent="No pude cargar el lector (¿sin internet?). Escribe el número del código."}
+}
+$("#scan").onclick=abrirCam;$("#camx").onclick=cerrarCam;
+$("#manual").onsubmit=e=>{e.preventDefault();porCodigo($("#mc").value);$("#mc").value=""};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")cerrarCam()});
 
 /* ───── CANASTA ───── */
 let cart=store.get("phn_canasta",{});
