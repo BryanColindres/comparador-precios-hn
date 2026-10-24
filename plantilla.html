@@ -275,6 +275,7 @@ a.p:active{transform:scale(.98)}
 .cal>*,.grid2>*{min-width:0}
 .step{min-width:0}.step input{flex:1 1 0;min-width:0;width:100%}
 .num{min-width:0}.num input{min-width:0}
+.edl{font-size:11.5px;color:var(--mu);margin-top:4px}
 .ckb{width:30px;height:30px;border-radius:9px;border:2px solid var(--bd);flex:none;display:grid;place-items:center;color:transparent;transition:all .15s;background:var(--sf)}
 .ckb svg{width:18px;height:18px;stroke-width:3}
 .ckb.on{background:var(--ok);border-color:var(--ok);color:#fff}
@@ -762,7 +763,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")cerrarCam()});
 
 /* ───── PERFILES (guardados en este celular) ───── */
 const PKEY=id=>"phn_p_"+id;
-const VACIO=()=>({mk:{items:[],pres:0,fecha:"",nota:""},cart:{},hist:[],chk:{},libres:[],listas:[],favs:[]});
+const VACIO=()=>({mk:{items:[],pres:0,fecha:"",nota:""},cart:{},hist:[],chk:{},libres:[],listas:[],favs:[],pov:{}});
 let PR=store.get("phn_perfiles",null),DATA,MK,HIST,cart;
 if(!PR||!Array.isArray(PR.lista)||!PR.lista.length){ // primera vez: lo que ya había se queda en el primer perfil
   const d=VACIO();const m=store.get("phn_mercado",null),c=store.get("phn_canasta",null);
@@ -777,10 +778,10 @@ function cargarPerfil(){
   DATA=Object.assign(VACIO(),store.get(PKEY(PR.act),{}));
   DATA.mk=Object.assign(VACIO().mk,DATA.mk||{});if(!Array.isArray(DATA.mk.items))DATA.mk.items=[];
   if(!Array.isArray(DATA.hist))DATA.hist=[];if(!DATA.cart||typeof DATA.cart!=="object")DATA.cart={};
-  ["libres","listas","favs"].forEach(k=>{if(!Array.isArray(DATA[k]))DATA[k]=[]});if(!DATA.chk||typeof DATA.chk!=="object")DATA.chk={};
+  ["libres","listas","favs"].forEach(k=>{if(!Array.isArray(DATA[k]))DATA[k]=[]});if(!DATA.chk||typeof DATA.chk!=="object")DATA.chk={};if(!DATA.pov||typeof DATA.pov!=="object")DATA.pov={};
   if(!DATA.mk.fecha)DATA.mk.fecha=hoy();
   MK=DATA.mk;HIST=DATA.hist;cart=DATA.cart;
-  Object.keys(cart).forEach(k=>{if(!byId.has(k)){delete cart[k];delete DATA.chk[k]}});
+  Object.keys(cart).forEach(k=>{if(!byId.has(k)){delete cart[k];delete DATA.chk[k];delete DATA.pov[k]}});
   DATA.favs=DATA.favs.filter(k=>byId.has(k));
 }
 const persist=()=>{store.set(PKEY(PR.act),DATA);if(typeof nubePush==="function")nubePush()};
@@ -844,7 +845,7 @@ function mezclar(L,R){
   const o=Object.assign(VACIO(),L),porId=(a,b)=>{const m=new Map();(b||[]).concat(a||[]).forEach(x=>m.set(x.id,x));return[...m.values()]};
   o.hist=porId(L.hist,R.hist);o.listas=porId(L.listas,R.listas);o.libres=porId(L.libres,R.libres);
   o.favs=[...new Set((L.favs||[]).concat(R.favs||[]))];
-  o.cart=Object.assign({},R.cart,L.cart);o.chk=Object.assign({},R.chk,L.chk);
+  o.cart=Object.assign({},R.cart,L.cart);o.pov=Object.assign({},R.pov,L.pov);o.chk=Object.assign({},R.chk,L.chk);
   if(!(L.mk&&L.mk.items&&L.mk.items.length)&&R.mk)o.mk=R.mk;
   return o;
 }
@@ -1103,6 +1104,8 @@ function agregar(id){
   if($("#v-buscar").classList.contains("on"))pintarBuscar();
   if($("#sheet").classList.contains("on")&&!$("#sb").querySelector("[data-bus]"))$$("#sb [data-add]").forEach(b=>{const on=!!cart[b.dataset.add];b.classList.toggle("in",on);b.innerHTML=on?IC.chk+" En mi lista":IC.plus+" A mi lista"});
 }
+const pr=(x,t,id)=>{const o=DATA.pov[id];return o&&o[t]>=0&&o[t]!=null?o[t]:x[t][0]};
+const fq=q=>String(Math.round(q*100)/100).replace(".",",");
 const CK='<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
 function pintarCanasta(){
   const ids=Object.keys(cart),lib=DATA.libres,total=ids.length+lib.length;
@@ -1117,16 +1120,16 @@ function pintarCanasta(){
   let tp=0,tc=0,bp=0,bc=0,nb=0,solo=0;
   const fila=(id)=>{
     const x=byId.get(id),q=cart[id],ok=!!DATA.chk[id];
-    if(x.p)tp+=x.p[0]*q;if(x.c)tc+=x.c[0]*q;
-    if(x.p&&x.c){bp+=x.p[0]*q;bc+=x.c[0]*q;nb++}else solo++;
+    if(x.p)tp+=pr(x,"p",id)*q;if(x.c)tc+=pr(x,"c",id)*q;
+    if(x.p&&x.c){bp+=pr(x,"p",id)*q;bc+=pr(x,"c",id)*q;nb++}else solo++;
     const im=imgu(x.p?"p":"c",(x.p||x.c)[6]);
     return`<div class="card crow ${ok?"done":""}"><button class="ckb ${ok?"on":""}" data-ck="${esc(id)}" aria-label="Marcar en el carro" aria-pressed="${ok}">${CK}</button>
      <div class="im">${im?`<img loading="lazy" referrerpolicy="no-referrer" src="${esc(im)}" alt="" onerror="this.remove()">`:""}</div>
-     <div class="bd"><h3>${esc(x.nm)}</h3><div class="pr"><span class="pz">${x.p?"Paiz "+money(x.p[0]*q):"Paiz —"}</span><span class="co">${x.c?"Colonia "+money(x.c[0]*q):"Colonia —"}</span></div></div>
-     <div class="qty"><button data-q="${esc(id)}" data-d="-1" aria-label="Menos">${IC.min}</button><b>${q}</b><button data-q="${esc(id)}" data-d="1" aria-label="Más">${IC.plus}</button></div></div>`};
+     <div class="bd" data-ed="${esc(id)}" style="cursor:pointer"><h3>${esc(x.nm)}</h3><div class="pr"><span class="pz">${x.p?"Paiz "+money(pr(x,"p",id)*q)+(DATA.pov[id]&&DATA.pov[id].p!=null?" ✎":""):"Paiz —"}</span><span class="co">${x.c?"Colonia "+money(pr(x,"c",id)*q)+(DATA.pov[id]&&DATA.pov[id].c!=null?" ✎":""):"Colonia —"}</span></div><div class="edl">✎ Cambiar cantidad o precio</div></div>
+     <div class="qty"><button data-q="${esc(id)}" data-d="-1" aria-label="Menos">${IC.min}</button><b>${fq(q)}</b><button data-q="${esc(id)}" data-d="1" aria-label="Más">${IC.plus}</button></div></div>`};
   const filaL=(x)=>`<div class="card crow ${x.ok?"done":""}"><button class="ckb ${x.ok?"on":""}" data-ckl="${x.id}" aria-label="Marcar en el carro" aria-pressed="${!!x.ok}">${CK}</button>
-     <div class="bd"><h3>${esc(x.n)}</h3><div class="muted small">Sin precio en el catálogo</div></div>
-     <div class="qty"><button data-ql="${x.id}" data-d="-1" aria-label="Menos">${IC.min}</button><b>${x.q}</b><button data-ql="${x.id}" data-d="1" aria-label="Más">${IC.plus}</button></div></div>`;
+     <div class="bd" data-edl="${x.id}" style="cursor:pointer"><h3>${esc(x.n)}</h3><div class="muted small">${x.p!=null?money(x.p*x.q)+" · anotado a mano":"Sin precio"}</div><div class="edl">✎ Cambiar cantidad o precio</div></div>
+     <div class="qty"><button data-ql="${x.id}" data-d="-1" aria-label="Menos">${IC.min}</button><b>${fq(x.q)}</b><button data-ql="${x.id}" data-d="1" aria-label="Más">${IC.plus}</button></div></div>`;
   const falta=ids.filter(i=>!DATA.chk[i]),listo=ids.filter(i=>DATA.chk[i]);
   h+=falta.map(fila).join("")+lib.filter(x=>!x.ok).map(filaL).join("");
   const hl=lib.filter(x=>x.ok);
@@ -1137,7 +1140,7 @@ function pintarCanasta(){
    <div class="p co ${nb&&dif>0?"win":""}"><span class="st">La Colonia</span><span class="v">${money(tc)}</span></div></div>
    ${nb?`<div class="verdict ${dif===0?"eq":"ok"}" style="margin-top:12px">${dif===0?"Los "+nb+" productos que están en ambas cuestan lo mismo.":`En los ${nb} productos que están en las dos tiendas, ${ST[gana].n} te ahorra ${money(Math.abs(dif))}.`}</div>`:""}
    ${solo?`<div class="note">${solo} producto${solo>1?"s":""} solo está${solo>1?"n":""} en una tienda, por eso los totales no son del todo comparables. Usa «Similares» en Buscar para encontrar equivalentes.</div>`:""}
-   ${lib.length?`<div class="note">Lo que escribiste a mano no tiene precio y no suma en el total.</div>`:""}
+   ${(()=>{const m=lib.filter(x=>x.p!=null).reduce((a,x)=>a+x.p*x.q,0);return lib.length?`<div class="note">${m?"Anotado a mano (sin catálogo): <b>"+money(m)+"</b>, aparte de los totales de arriba. ":""}${lib.some(x=>x.p==null)?"Toca un producto escrito a mano para ponerle precio.":""}</div>`:""})()}
    <div class="acts" style="margin-top:12px;flex-wrap:wrap"><button class="btn pri" id="cguardar">Guardar compra</button><button class="btn" id="lsave">Guardar como lista</button><button class="btn" id="lmis">Mis listas${DATA.listas.length?" ("+DATA.listas.length+")":""}</button><button class="btn" id="vaciar">Vaciar</button></div></div>`;
   $("#cart").innerHTML=h;
 }
@@ -1150,7 +1153,9 @@ $("#cart").onclick=e=>{
   if(e.target.closest("#lsave")){const n=(prompt("Nombre de la lista (ej: Compra de la quincena):","")||"").trim().slice(0,40);if(!n)return;
     DATA.listas.push({id:"s"+Date.now().toString(36),n,cat:Object.keys(cart).map(id=>({id,q:cart[id]})),lib:DATA.libres.map(x=>({n:x.n,q:x.q}))});persist();pintarCanasta();toast("Lista guardada: "+n);return}
   if(e.target.closest("#lmis")){listasSheet();return}
-  if(e.target.closest("#vaciar")){if(confirm("¿Vaciar tu lista?")){Object.keys(cart).forEach(k=>delete cart[k]);DATA.chk={};DATA.libres.length=0;guardar();pintarCanasta();toast("Lista vacía")}return}
+  if(e.target.closest("#vaciar")){if(confirm("¿Vaciar tu lista?")){Object.keys(cart).forEach(k=>delete cart[k]);DATA.chk={};DATA.pov={};DATA.libres.length=0;guardar();pintarCanasta();toast("Lista vacía")}return}
+  const ed=e.target.closest("[data-ed]");if(ed&&!e.target.closest("button")){editarItem(ed.dataset.ed,false);return}
+  const edl=e.target.closest("[data-edl]");if(edl&&!e.target.closest("button")){editarItem(edl.dataset.edl,true);return}
   const ck=e.target.closest("[data-ck]");if(ck){const id=ck.dataset.ck;DATA.chk[id]=!DATA.chk[id];persist();pintarCanasta();return}
   const cl=e.target.closest("[data-ckl]");if(cl){const x=DATA.libres.find(y=>y.id===cl.dataset.ckl);if(x){x.ok=!x.ok;persist();pintarCanasta()}return}
   const ql=e.target.closest("[data-ql]");if(ql){const k=DATA.libres.findIndex(y=>y.id===ql.dataset.ql),x=DATA.libres[k];if(x){x.q+=+ql.dataset.d;if(x.q<=0)DATA.libres.splice(k,1);guardar();pintarCanasta()}return}
@@ -1159,6 +1164,26 @@ $("#cart").onclick=e=>{
   if(n<=0){delete cart[id];delete DATA.chk[id]}else cart[id]=n;guardar();pintarCanasta();
 };
 $("#cart").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="lnew")lAgregar()});
+function editarItem(id,libre){
+  const x=libre?DATA.libres.find(y=>y.id===id):byId.get(id);if(!x)return;
+  const q=libre?x.q:cart[id],o=DATA.pov[id]||{};
+  const campo=(t,lab,val,ph)=>`<div><label class="lab" for="e${t}">${lab}</label><input class="in2" id="e${t}" type="number" inputmode="decimal" min="0" step="any" value="${val==null?"":val}" placeholder="${ph}"></div>`;
+  hoja(`<h3 class="t">${esc(libre?x.n:x.nm)}</h3>
+   <div class="muted small">${libre?"Escribe la cantidad y, si quieres, el precio por unidad.":"Cantidad en la medida del precio (si es por libra, 4.5 son cuatro libras y media). Si el precio de la tienda es otro, corrígelo; déjalo vacío para volver al precio del catálogo."}</div>
+   <div class="mk" style="padding:12px 0 0">${campo("q","Cantidad",q,"1")}
+   ${libre?campo("p","Precio por unidad (L)",x.p,"Sin precio"):`<div class="r2">${x.p?campo("p","Precio en Paiz (L)",o.p,money(x.p[0]).replace("L ","")):""}${x.c?campo("c","Precio en La Colonia (L)",o.c,money(x.c[0]).replace("L ","")):""}</div>`}
+   <button class="btn pri" id="edok" data-id="${esc(id)}" data-l="${libre?1:0}">Guardar</button></div>`);
+}
+$("#sb").addEventListener("click",e=>{
+  const b=e.target.closest("#edok");if(!b)return;
+  const id=b.dataset.id,libre=b.dataset.l==="1",q=parseFloat(String($("#eq").value).replace(",","."));
+  if(!(q>0)){toast("Pon una cantidad mayor que 0");return}
+  const num=el=>{if(!el||el.value==="")return null;const v=parseFloat(String(el.value).replace(",","."));return v>=0?v:null};
+  if(libre){const x=DATA.libres.find(y=>y.id===id);if(!x)return;x.q=q;x.p=num($("#ep"))}
+  else{cart[id]=q;const p=num($("#ep")),c=num($("#ec"));
+    if(p==null&&c==null)delete DATA.pov[id];else DATA.pov[id]={p,c}}
+  guardar();cerrar();pintarCanasta();toast("Guardado");
+});
 function listasSheet(){
   let h=`<h3 class="t">Mis listas guardadas</h3><div class="muted small">Toca «Usar» para agregar todo a tu lista de hoy sin volver a escribirlo.</div>`;
   h+=DATA.listas.length?DATA.listas.map(l=>`<div class="sline"><div class="bd"><h4>${esc(l.n)}</h4><div class="muted small">${l.cat.filter(c=>byId.has(c.id)).length+l.lib.length} productos</div></div>
@@ -1189,14 +1214,15 @@ $("#sb").addEventListener("click",e=>{
   if(!e.target.closest("#cgok"))return;
   const modo=$("#cgt").value,its=[];let omit=0;
   Object.keys(cart).forEach(id=>{const x=byId.get(id),q=cart[id];if(!x)return;
-    let t;if(modo==="m"){t=x.p&&x.c?(x.p[0]<=x.c[0]?"p":"c"):x.p?"p":"c"}else t=modo;
+    let t;if(modo==="m"){t=x.p&&x.c?(pr(x,"p",id)<=pr(x,"c",id)?"p":"c"):x.p?"p":"c"}else t=modo;
     if(!x[t]){omit++;return}
-    its.push({n:x.nm,q,u:"unidad",p:Math.round(x[t][0]*q*100)/100,t:ST[t].n})});
+    its.push({n:x.nm,q,u:"unidad",p:Math.round(pr(x,t,id)*q*100)/100,t:ST[t].n})});
+  DATA.libres.forEach(l=>{if(l.p!=null)its.push({n:l.n,q:l.q,u:"unidad",p:Math.round(l.p*l.q*100)/100,t:"a mano"})});
   if(!its.length){toast("Nada que guardar con esa tienda");return}
   const nombre={m:"Paiz + La Colonia",p:"Paiz",c:"La Colonia"}[modo];
   if(omit&&!confirm(omit+" producto"+(omit>1?"s":"")+" no está"+(omit>1?"n":"")+" en esa tienda y no se guarda"+(omit>1?"n":"")+". ¿Seguir?"))return;
   HIST.push({id:"c"+Date.now().toString(36),ts:Date.now(),fecha:$("#cgf").value||hoy(),nota:$("#cgn").value.trim(),tienda:nombre,items:its});
-  Object.keys(cart).forEach(k=>delete cart[k]);DATA.chk={};DATA.libres.length=0;guardar();cerrar();pintarCanasta();mPintar();toast("Compra guardada en tu historial");
+  Object.keys(cart).forEach(k=>delete cart[k]);DATA.chk={};DATA.pov={};DATA.libres.length=0;guardar();cerrar();pintarCanasta();mPintar();toast("Compra guardada en tu historial");
 });
 
 /* ───── arranque ───── */
