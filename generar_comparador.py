@@ -149,6 +149,13 @@ p, c = cargar(CSV_PAIZ), cargar(CSV_COL)
 fecha_p = str(pd.read_csv(CSV_PAIZ, usecols=["fecha"])["fecha"].iloc[0])
 fecha_c = str(pd.read_csv(CSV_COL, usecols=["fecha"])["fecha"].iloc[0])
 
+# Historial de precios: se agrega esta corrida a data/historial.json y se publica en docs/
+import historial as _hist
+_h = _hist.cargar()
+_hist.aplicar(_h, "p", fecha_p, _hist.precios(pd.read_csv(CSV_PAIZ, encoding="utf-8-sig"), "p"))
+_hist.aplicar(_h, "c", fecha_c, _hist.precios(pd.read_csv(CSV_COL, encoding="utf-8-sig"), "c"))
+_hist.guardar(_h)
+
 
 def prefijo_img(df):
     imgs = [x for x in df["imagen_url"].dropna() if isinstance(x, str)]
@@ -441,6 +448,7 @@ html = (PLANTILLA.read_text(encoding="utf-8")
 SALIDA.mkdir(exist_ok=True)
 (SALIDA / "index.html").write_text(html, encoding="utf-8")
 (SALIDA / "sw.js").write_text(SW, encoding="utf-8")
+(SALIDA / "historial.json").write_text(_hist.RUTA.read_text(encoding="utf-8"), encoding="utf-8")
 (SALIDA / "manifest.webmanifest").write_text(json.dumps(MANIFEST, ensure_ascii=False), encoding="utf-8")
 (SALIDA / ".nojekyll").write_text("", encoding="utf-8")
 print("Listo ->", SALIDA / "index.html", f"({len(html)//1024} KB)")

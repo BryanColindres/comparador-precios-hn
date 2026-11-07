@@ -45,6 +45,10 @@ En 1–2 minutos GitHub Pages publica la versión nueva.
 
 `supabase/precios_hogar.sql` (se corre una vez en el SQL Editor) crea la tabla `precios_datos` y las funciones `precios_leer` / `precios_guardar`. La página usa solo la llave *publishable* (pública) del proyecto. En la app: perfil (círculo de arriba) → **Compartir con mi familia** → crea un código de hogar; los demás lo escriben o abren el enlace. Cada perfil, lista e historial se sincronizan; si dos celulares cambian lo mismo a la vez, se mezclan.
 
+## Historial de precios
+
+Cada corrida agrega sus precios a `data/historial.json` (solo guarda cuando un precio cambia) y la página lo lee desde `docs/historial.json`. En **Lista** aparece «Cambios desde…» (qué bajó y qué subió en ~7 días) y en cada producto de Buscar el botón de gráfica muestra su historial. Para reconstruirlo desde los commits anteriores: `python historial.py`.
+
 ## Estructura
 
 ```
