@@ -410,8 +410,8 @@ for r in C:
 print(f"Productos: {len(items)} · mismos por código de barras: {n_ean} · coincidencias probables: {n_fuzzy}")
 
 # ───────────────────────── Página ─────────────────────────
-SW = """// Guarda la página para que abra sin señal; se actualiza sola cuando hay internet.
-const C = "precios-hn-v2";
+SW = """// Primero busca la versión nueva en internet (máx. 4 s); sin señal abre la guardada.
+const C = "precios-hn-v3";
 self.addEventListener("install", e => { self.skipWaiting(); });
 self.addEventListener("activate", e => e.waitUntil(
   caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())));
@@ -420,8 +420,9 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET" || u.origin !== location.origin) return;
   e.respondWith(caches.open(C).then(async c => {
     const hit = await c.match(e.request);
-    const red = fetch(e.request).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; }).catch(() => hit);
-    return hit || red;
+    const red = fetch(e.request, {cache: "no-cache"}).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; });
+    if (!hit) return red;
+    return Promise.race([red, new Promise((_, no) => setTimeout(no, 4000))]).catch(() => hit);
   }));
 });
 """
