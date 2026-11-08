@@ -921,7 +921,7 @@ function mezclar(L,R){
 function repintar(){cargarPerfil();{const s=SYV[PR.act];if(s&&!s.sucio){s.h=hashS(JSON.stringify(DATA));store.set("phn_sync",SYV)}}editIdx=-1;pintarAvatar();mForm();mPintar();pintarCanasta();pintarBuscar();pintarFavs();badge()}
 async function nubePull(){
   if(!HOGAR)return;
-  const filas=await rpc("precios_leer",{p_hogar:HOGAR});let cambio=false;
+  const filas=await rpc("precios_leer",{p_hogar:HOGAR});let cambio=false;const vistos=new Set(filas.map(f=>f.perfil));
   for(const f of filas){
     const id=f.perfil,rem=f.datos||{},loc=PR.lista.find(p=>p.id===id);
     if(rem.borrado){if(loc&&PR.lista.length>1){PR.lista=PR.lista.filter(p=>p.id!==id);try{localStorage.removeItem(PKEY(id))}catch(e){}delete SYV[id];if(PR.act===id)PR.act=PR.lista[0].id;cambio=true}continue}
@@ -935,7 +935,9 @@ async function nubePull(){
     store.set(PKEY(id),nuevo);SYV[id]={v:f.version,h:sinCambios?hashS(JSON.stringify(nuevo)):sv.h};cambio=true;
     if(!sinCambios)SYV[id].sucio=true;
   }
-  if(cambio){store.set("phn_perfiles",PR);store.set("phn_sync",SYV);repintar()}
+  PR.lista.forEach(p=>{if(!vistos.has(p.id)){SYV[p.id]={v:0,h:""}}}); // el servidor no lo tiene (p. ej. proyecto nuevo): se vuelve a subir
+  if(cambio){store.set("phn_perfiles",PR);repintar()}
+  store.set("phn_sync",SYV);
 }
 async function nubePushUno(id,borrado){
   const d=id===PR.act?DATA:leerP(id),p=PR.lista.find(x=>x.id===id),sv=SYV[id]||{v:0,h:""};
