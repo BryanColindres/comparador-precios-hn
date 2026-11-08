@@ -16,8 +16,8 @@ jobs:
       - name: Consulta de prueba
         run: |
           code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            "https://apvrcuejwrkadtvnkhqc.supabase.co/rest/v1/rpc/precios_leer" \
-            -H "apikey: sb_publishable_PvnpABAoEgZpm9EYLcO4PA_Hx9kU0zi" \
+            "https://kkmzuletlwdqupajzmsc.supabase.co/rest/v1/rpc/precios_leer" \
+            -H "apikey: sb_publishable_reNfxEQgV5J1ZM8prZ0iHQ_8joBf2ng" \
             -H "Content-Type: application/json" \
             -d '{"p_hogar":"mantener-despierto-0000"}')
           echo "Respuesta de Supabase: $code"

@@ -895,7 +895,7 @@ $("#sb").addEventListener("click",e=>{
 });
 
 /* ───── NUBE: datos compartidos del hogar (Supabase) ───── */
-const SB_URL="https://apvrcuejwrkadtvnkhqc.supabase.co",SB_KEY="sb_publishable_PvnpABAoEgZpm9EYLcO4PA_Hx9kU0zi";
+const SB_URL="https://kkmzuletlwdqupajzmsc.supabase.co",SB_KEY="sb_publishable_reNfxEQgV5J1ZM8prZ0iHQ_8joBf2ng";
 let HOGAR=store.get("phn_hogar",""),SYV=store.get("phn_sync",{}),SY={e:HOGAR?"pend":"off",t:0},syT=null,syBusy=false,syQ=false;
 const hashS=s=>{let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return String(h)};
 const rpc=async(fn,args)=>{const r=await fetch(SB_URL+"/rest/v1/rpc/"+fn,{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify(args)});
