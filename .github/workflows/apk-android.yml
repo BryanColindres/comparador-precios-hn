@@ -29,7 +29,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
+      - name: Aceptar licencias del SDK de Android (ya viene instalado en el servidor)
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
       - name: Crear el proyecto Android (envuelve la página publicada)
         run: |
           mkdir apk && cd apk
