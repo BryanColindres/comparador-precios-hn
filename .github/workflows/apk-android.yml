@@ -1,0 +1,68 @@
+name: Crear app Android (APK)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "android/**"
+      - ".github/workflows/apk-android.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-android
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      URL_PAGINA: https://bryancolindres.github.io/comparador-precios-hn/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - name: Crear el proyecto Android (envuelve la página publicada)
+        run: |
+          mkdir apk && cd apk
+          npm init -y >/dev/null
+          npm i @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+          mkdir www
+          echo '<!doctype html><meta charset="utf-8"><title>Precios HN</title>' > www/index.html
+          npx cap init "Precios HN" com.bryancolindres.precioshn --web-dir www
+          cat > capacitor.config.json <<JSON
+          {
+            "appId": "com.bryancolindres.precioshn",
+            "appName": "Precios HN",
+            "webDir": "www",
+            "server": { "url": "${URL_PAGINA}", "androidScheme": "https" },
+            "android": { "backgroundColor": "#0f1317" }
+          }
+          JSON
+          npx cap add android
+          # cámara para el escáner de códigos de barras
+          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <application#' android/app/src/main/AndroidManifest.xml
+      - name: Íconos
+        run: |
+          pip install pillow
+          python android/iconos.py apk/android/app/src/main/res
+      - name: Compilar
+        working-directory: apk/android
+        run: ./gradlew --no-daemon assembleDebug
+      - name: Publicar el APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp apk/android/app/build/outputs/apk/debug/app-debug.apk Precios-HN.apk
+          ls -la Precios-HN.apk
+          gh release delete apk-latest --yes --cleanup-tag || true
+          gh release create apk-latest Precios-HN.apk --title "Precios HN (Android)" \
+            --notes "App Android de Precios HN. Descárgala desde el celular e instálala (hay que permitir «instalar apps desconocidas» para el navegador). Se actualiza sola: carga la página publicada."

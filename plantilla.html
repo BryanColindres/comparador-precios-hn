@@ -275,6 +275,8 @@ a.p:active{transform:scale(.98)}
 .cal>*,.grid2>*{min-width:0}
 .step{min-width:0}.step input{flex:1 1 0;min-width:0;width:100%}
 .num{min-width:0}.num input{min-width:0}
+.plk{display:inline-flex;align-items:center;gap:4px;text-decoration:underline;text-underline-offset:3px;text-decoration-color:color-mix(in srgb,currentColor 40%,transparent)}
+.plk svg{width:12px;height:12px}
 .edl{font-size:11.5px;color:var(--mu);margin-top:4px}
 .ckb{width:30px;height:30px;border-radius:9px;border:2px solid var(--bd);flex:none;display:grid;place-items:center;color:transparent;transition:all .15s;background:var(--sf)}
 .ckb svg{width:18px;height:18px;stroke-width:3}
@@ -867,7 +869,8 @@ function perfilSheet(){
    <div class="mk" style="padding:12px 0 0"><label class="lab" for="pnew">Agregar perfil</label>
     <div class="pend" style="display:flex;gap:8px"><input class="in2" id="pnew" maxlength="24" placeholder="Nombre (ej: Mamá)" autocomplete="off"><button class="btn pri" id="padd" style="height:48px">Agregar</button></div></div>
    <div class="acts" style="flex-wrap:wrap"><button class="btn" id="pren">Renombrar «${esc(act.n)}»</button>${PR.lista.length>1?`<button class="btn" id="pdel" style="color:var(--bad)">Borrar este perfil</button>`:""}</div>
-   <h2 style="margin-left:0">Familia</h2><div class="acts"><button class="btn pri" id="pnube">Compartir con mi familia</button></div><h2 style="margin-left:0">Respaldo</h2><div class="muted small">Copia el respaldo del perfil activo para pasarlo a otro celular o guardarlo. Para restaurar, pega el texto abajo.</div>
+   <h2 style="margin-left:0">Familia</h2><div class="acts"><button class="btn pri" id="pnube">Compartir con mi familia</button></div><div class="acts"><a class="btn" href="https://github.com/BryanColindres/comparador-precios-hn/releases/download/apk-latest/Precios-HN.apk" rel="noopener">Descargar app Android (APK)</a></div>
+   <h2 style="margin-left:0">Respaldo</h2><div class="muted small">Copia el respaldo del perfil activo para pasarlo a otro celular o guardarlo. Para restaurar, pega el texto abajo.</div>
    <div class="acts"><button class="btn" id="pexp">Copiar respaldo</button></div>
    <textarea class="in2" id="pimp" rows="3" placeholder="Pega aquí un respaldo para restaurar" style="height:auto;padding:10px 12px;margin-top:8px;font-size:13px"></textarea>
    <div class="acts"><button class="btn" id="pimpb">Restaurar en «${esc(act.n)}»</button></div>`);
@@ -1191,7 +1194,8 @@ function pintarCanasta(){
     const im=imgu(x.p?"p":"c",(x.p||x.c)[6]);
     return`<div class="card crow ${ok?"done":""}"><button class="ckb ${ok?"on":""}" data-ck="${esc(id)}" aria-label="Marcar en el carro" aria-pressed="${ok}">${CK}</button>
      <div class="im">${im?`<img loading="lazy" referrerpolicy="no-referrer" src="${esc(im)}" alt="" onerror="this.remove()">`:""}</div>
-     <div class="bd" data-ed="${esc(id)}" style="cursor:pointer"><h3>${esc(x.nm)}</h3><div class="pr"><span class="pz">${x.p?"Paiz "+money(pr(x,"p",id)*q)+(DATA.pov[id]&&DATA.pov[id].p!=null?" ✎":""):"Paiz —"}</span><span class="co">${x.c?"Colonia "+money(pr(x,"c",id)*q)+(DATA.pov[id]&&DATA.pov[id].c!=null?" ✎":""):"Colonia —"}</span></div><div class="edl">✎ Cambiar cantidad o precio</div></div>
+     <div class="bd" data-ed="${esc(id)}" style="cursor:pointer"><h3>${esc(x.nm)}</h3><div class="pr">${["p","c"].map(t=>{const k=t==="p"?"pz":"co",n=t==="p"?"Paiz":"Colonia";
+      return x[t]?`<a class="${k} plk" href="${esc(link(t,x[t][5]))}" target="_blank" rel="noopener" aria-label="Abrir en ${ST[t].n}">${n} ${money(pr(x,t,id)*q)}${DATA.pov[id]&&DATA.pov[id][t]!=null?" ✎":""} ${IC.ext}</a>`:`<span class="${k}">${n} —</span>`}).join("")}</div><div class="edl">✎ Cambiar cantidad o precio</div></div>
      <div class="qty"><button data-q="${esc(id)}" data-d="-1" aria-label="Menos">${IC.min}</button><b>${fq(q)}</b><button data-q="${esc(id)}" data-d="1" aria-label="Más">${IC.plus}</button></div></div>`};
   const filaL=(x)=>`<div class="card crow ${x.ok?"done":""}"><button class="ckb ${x.ok?"on":""}" data-ckl="${x.id}" aria-label="Marcar en el carro" aria-pressed="${!!x.ok}">${CK}</button>
      <div class="bd" data-edl="${x.id}" style="cursor:pointer"><h3>${esc(x.n)}</h3><div class="muted small">${x.p!=null?money(x.p*x.q)+" · anotado a mano":"Sin precio"}</div><div class="edl">✎ Cambiar cantidad o precio</div></div>
@@ -1220,8 +1224,8 @@ $("#cart").onclick=e=>{
     DATA.listas.push({id:"s"+Date.now().toString(36),n,cat:Object.keys(cart).map(id=>({id,q:cart[id]})),lib:DATA.libres.map(x=>({n:x.n,q:x.q}))});persist();pintarCanasta();toast("Lista guardada: "+n);return}
   if(e.target.closest("#lmis")){listasSheet();return}
   if(e.target.closest("#vaciar")){if(confirm("¿Vaciar tu lista?")){Object.keys(cart).forEach(k=>delete cart[k]);DATA.chk={};DATA.pov={};DATA.libres.length=0;guardar();pintarCanasta();toast("Lista vacía")}return}
-  const ed=e.target.closest("[data-ed]");if(ed&&!e.target.closest("button")){editarItem(ed.dataset.ed,false);return}
-  const edl=e.target.closest("[data-edl]");if(edl&&!e.target.closest("button")){editarItem(edl.dataset.edl,true);return}
+  const ed=e.target.closest("[data-ed]");if(ed&&!e.target.closest("button,a")){editarItem(ed.dataset.ed,false);return}
+  const edl=e.target.closest("[data-edl]");if(edl&&!e.target.closest("button,a")){editarItem(edl.dataset.edl,true);return}
   const ck=e.target.closest("[data-ck]");if(ck){const id=ck.dataset.ck;DATA.chk[id]=!DATA.chk[id];persist();pintarCanasta();return}
   const cl=e.target.closest("[data-ckl]");if(cl){const x=DATA.libres.find(y=>y.id===cl.dataset.ckl);if(x){x.ok=!x.ok;persist();pintarCanasta()}return}
   const ql=e.target.closest("[data-ql]");if(ql){const k=DATA.libres.findIndex(y=>y.id===ql.dataset.ql),x=DATA.libres[k];if(x){x.q+=+ql.dataset.d;if(x.q<=0)DATA.libres.splice(k,1);guardar();pintarCanasta()}return}
