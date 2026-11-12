@@ -1176,7 +1176,7 @@ function agregar(id){
   if($("#v-buscar").classList.contains("on"))pintarBuscar();
   if($("#sheet").classList.contains("on")&&!$("#sb").querySelector("[data-bus]"))$$("#sb [data-add]").forEach(b=>{const on=!!cart[b.dataset.add];b.classList.toggle("in",on);b.innerHTML=on?IC.chk+" En mi lista":IC.plus+" A mi lista"});
 }
-const pr=(x,t,id)=>{const o=DATA.pov[id];return o&&o[t]>=0&&o[t]!=null?o[t]:x[t][0]};
+const pr=(x,t,id)=>{const o=DATA.pov[id];return o&&o[t]!=null&&o[t]>=0?o[t]:(x[t]?x[t][0]:null)}; // null = sin precio en esa tienda
 const fq=q=>String(Math.round(q*100)/100).replace(".",",");
 const CK='<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
 function pintarCanasta(){
@@ -1192,13 +1192,15 @@ function pintarCanasta(){
   let tp=0,tc=0,bp=0,bc=0,nb=0,solo=0;
   const fila=(id)=>{
     const x=byId.get(id),q=cart[id],ok=!!DATA.chk[id];
-    if(x.p)tp+=pr(x,"p",id)*q;if(x.c)tc+=pr(x,"c",id)*q;
-    if(x.p&&x.c){bp+=pr(x,"p",id)*q;bc+=pr(x,"c",id)*q;nb++}else solo++;
+    const vp=pr(x,"p",id),vc=pr(x,"c",id);
+    if(vp!=null)tp+=vp*q;if(vc!=null)tc+=vc*q;
+    if(vp!=null&&vc!=null){bp+=vp*q;bc+=vc*q;nb++}else solo++;
     const im=imgu(x.p?"p":"c",(x.p||x.c)[6]);
     return`<div class="card crow ${ok?"done":""}"><button class="ckb ${ok?"on":""}" data-ck="${esc(id)}" aria-label="Marcar en el carro" aria-pressed="${ok}">${CK}</button>
      <div class="im">${im?`<img loading="lazy" referrerpolicy="no-referrer" src="${esc(im)}" alt="" onerror="this.remove()">`:""}</div>
      <div class="bd" data-ed="${esc(id)}" style="cursor:pointer"><h3>${esc(x.nm)}</h3><div class="pr">${["p","c"].map(t=>{const k=t==="p"?"pz":"co",n=t==="p"?"Paiz":"Colonia";
-      return x[t]?`<a class="${k} plk" href="${esc(link(t,x[t][5]))}" target="_blank" rel="noopener" aria-label="Abrir en ${ST[t].n}">${n} ${money(pr(x,t,id)*q)}${DATA.pov[id]&&DATA.pov[id][t]!=null?" ✎":""} ${IC.ext}</a>`:`<span class="${k}">${n} —</span>`}).join("")}</div><div class="edl">✎ Cambiar cantidad o precio</div></div>
+      const v=pr(x,t,id),ed=DATA.pov[id]&&DATA.pov[id][t]!=null?" ✎":"";
+      return x[t]?`<a class="${k} plk" href="${esc(link(t,x[t][5]))}" target="_blank" rel="noopener" aria-label="Abrir en ${ST[t].n}">${n} ${money(v*q)}${ed} ${IC.ext}</a>`:v!=null?`<span class="${k}">${n} ${money(v*q)}${ed}</span>`:`<span class="${k}">${n} —</span>`}).join("")}</div><div class="edl">✎ Cambiar cantidad o precio</div></div>
      <div class="qty"><button data-q="${esc(id)}" data-d="-1" aria-label="Menos">${IC.min}</button><b>${fq(q)}</b><button data-q="${esc(id)}" data-d="1" aria-label="Más">${IC.plus}</button></div></div>`};
   const filaL=(x)=>`<div class="card crow ${x.ok?"done":""}"><button class="ckb ${x.ok?"on":""}" data-ckl="${x.id}" aria-label="Marcar en el carro" aria-pressed="${!!x.ok}">${CK}</button>
      <div class="bd" data-edl="${x.id}" style="cursor:pointer"><h3>${esc(x.n)}</h3><div class="muted small">${x.p!=null?money(x.p*x.q)+" · anotado a mano":"Sin precio"}</div><div class="edl">✎ Cambiar cantidad o precio</div></div>
@@ -1244,7 +1246,7 @@ function editarItem(id,libre){
   hoja(`<h3 class="t">${esc(libre?x.n:x.nm)}</h3>
    <div class="muted small">${libre?"Escribe la cantidad y, si quieres, el precio por unidad.":"Cantidad en la medida del precio (si es por libra, 4.5 son cuatro libras y media). Si el precio de la tienda es otro, corrígelo; déjalo vacío para volver al precio del catálogo."}</div>
    <div class="mk" style="padding:12px 0 0">${campo("q","Cantidad",q,"1")}
-   ${libre?campo("p","Precio por unidad (L)",x.p,"Sin precio"):`<div class="r2">${x.p?campo("p","Precio en Paiz (L)",o.p,money(x.p[0]).replace("L ","")):""}${x.c?campo("c","Precio en La Colonia (L)",o.c,money(x.c[0]).replace("L ","")):""}</div>`}
+   ${libre?campo("p","Precio por unidad (L)",x.p,"Sin precio"):`<div class="r2">${campo("p","Precio en Paiz (L)",o.p,x.p?money(x.p[0]).replace("L ",""):"Sin precio")}${campo("c","Precio en La Colonia (L)",o.c,x.c?money(x.c[0]).replace("L ",""):"Sin precio")}</div>`}
    <button class="btn pri" id="edok" data-id="${esc(id)}" data-l="${libre?1:0}">Guardar</button></div>`);
 }
 $("#sb").addEventListener("click",e=>{
@@ -1275,25 +1277,40 @@ $("#sb").addEventListener("click",e=>{
 });
 
 /* Guardar la canasta del súper en el historial */
+function faltanDe(modo){ // productos sin precio en la tienda elegida (se les puede poner el precio pagado)
+  if(modo==="m")return[];
+  return Object.keys(cart).filter(id=>{const x=byId.get(id);return x&&pr(x,modo,id)==null});
+}
+function faltanHtml(){
+  const modo=$("#cgt").value,f=faltanDe(modo);
+  if(!f.length)return"";
+  return`<div class="note" style="margin-top:0"><b>${f.length} producto${f.length>1?"s":""} sin precio en ${ST[modo].n}.</b> Si los compraste ahí, escribe lo que pagaste (precio total). Los que dejes vacíos no se guardan.</div>`+
+   f.map(id=>{const x=byId.get(id);return`<div><label class="lab" for="fp-${esc(id)}">${cart[id]!==1?fq(cart[id])+" × ":""}${esc(x.nm)}</label><input class="in2" id="fp-${esc(id)}" data-fp="${esc(id)}" type="number" inputmode="decimal" min="0" step="any" placeholder="Precio total (L)"></div>`}).join("");
+}
 function guardarCanasta(){
   hoja(`<h3 class="t">Guardar compra del súper</h3><div class="muted small">Se guarda en tu historial de «${esc(PR.lista.find(p=>p.id===PR.act).n)}» con el precio de cada producto.</div>
    <div class="mk" style="padding:12px 0 0"><div><label class="lab" for="cgt">¿Dónde compraste?</label>
    <select class="in2" id="cgt"><option value="m">Cada producto donde es más barato</option><option value="p">Todo en Paiz</option><option value="c">Todo en La Colonia</option></select></div>
+   <div id="cgfalta" style="display:grid;gap:10px"></div>
    <div class="r2"><div><label class="lab" for="cgf">Fecha</label><input class="in2" id="cgf" type="date" value="${hoy()}"></div>
    <div><label class="lab" for="cgn">Nota (opcional)</label><input class="in2" id="cgn" maxlength="40" placeholder="Ej: quincena"></div></div>
    <button class="btn pri" id="cgok">Guardar y vaciar mi lista</button></div>`);
 }
+$("#sb").addEventListener("change",e=>{if(e.target.id==="cgt")$("#cgfalta").innerHTML=faltanHtml()});
 $("#sb").addEventListener("click",e=>{
   if(!e.target.closest("#cgok"))return;
   const modo=$("#cgt").value,its=[];let omit=0;
+  const manual={};$$("#sb [data-fp]").forEach(i=>{const v=parseFloat(String(i.value).replace(",","."));if(v>=0)manual[i.dataset.fp]=v});
   Object.keys(cart).forEach(id=>{const x=byId.get(id),q=cart[id];if(!x)return;
-    let t;if(modo==="m"){t=x.p&&x.c?(pr(x,"p",id)<=pr(x,"c",id)?"p":"c"):x.p?"p":"c"}else t=modo;
-    if(!x[t]){omit++;return}
-    its.push({n:x.nm,q,u:"unidad",p:Math.round(pr(x,t,id)*q*100)/100,t:ST[t].n})});
+    let t;if(modo==="m"){const a=pr(x,"p",id),c=pr(x,"c",id);t=a!=null&&c!=null?(a<=c?"p":"c"):a!=null?"p":"c"}else t=modo;
+    const v=pr(x,t,id);
+    if(v!=null)its.push({n:x.nm,q,u:"unidad",p:Math.round(v*q*100)/100,t:ST[t].n});
+    else if(manual[id]!=null)its.push({n:x.nm,q,u:"unidad",p:Math.round(manual[id]*100)/100,t:ST[t].n+" (precio anotado)"});
+    else omit++});
   DATA.libres.forEach(l=>{if(l.p!=null)its.push({n:l.n,q:l.q,u:"unidad",p:Math.round(l.p*l.q*100)/100,t:"a mano"})});
-  if(!its.length){toast("Nada que guardar con esa tienda");return}
+  if(!its.length){toast("Nada que guardar: ponle precio a algún producto");return}
   const nombre={m:"Paiz + La Colonia",p:"Paiz",c:"La Colonia"}[modo];
-  if(omit&&!confirm(omit+" producto"+(omit>1?"s":"")+" no está"+(omit>1?"n":"")+" en esa tienda y no se guarda"+(omit>1?"n":"")+". ¿Seguir?"))return;
+  if(omit&&!confirm(omit+" producto"+(omit>1?"s":"")+" sin precio no se guarda"+(omit>1?"n":"")+". ¿Seguir?"))return;
   HIST.push({id:"c"+Date.now().toString(36),ts:Date.now(),fecha:$("#cgf").value||hoy(),nota:$("#cgn").value.trim(),tienda:nombre,items:its});
   Object.keys(cart).forEach(k=>delete cart[k]);DATA.chk={};DATA.pov={};DATA.libres.length=0;guardar();cerrar();pintarCanasta();mPintar();toast("Compra guardada en tu historial");
 });
